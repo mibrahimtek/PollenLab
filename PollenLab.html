@@ -1,0 +1,1901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PollenLab — germination &amp; viability image analysis</title>
+<style>
+:root{
+  --bg:#0E1116; --panel:#151A22; --panel2:#1B212B; --panel3:#222A36;
+  --line:#28303C; --line2:#333D4C;
+  --text:#E8ECF3; --muted:#8C97A8; --dim:#5F6B7D;
+  --fda:#5FE08A; --pi:#FF5C7A; --mark:#FFB020; --scale:#4CC9F0; --germ:#B98BFF;
+  --focus:#8AB4FF;
+  --ui:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","Segoe UI Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--ui);
+  font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.app{display:flex;flex-direction:column;height:100vh}
+header{display:flex;align-items:center;gap:18px;padding:0 14px;height:46px;
+  background:var(--panel);border-bottom:1px solid var(--line);flex:none}
+.brand{display:flex;align-items:baseline;gap:8px;font-weight:650;letter-spacing:-.01em}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--fda);
+  box-shadow:0 0 0 3px rgba(95,224,138,.15);align-self:center}
+.brand small{color:var(--dim);font-weight:400;font-size:11px}
+nav{display:flex;gap:2px;margin-left:6px}
+nav button{background:none;border:0;padding:6px 12px;border-radius:6px;color:var(--muted);
+  cursor:pointer;font-weight:500}
+nav button:hover{background:var(--panel2);color:var(--text)}
+nav button[aria-selected="true"]{background:var(--panel3);color:var(--text)}
+.spacer{flex:1}
+.hud{display:flex;gap:14px;font-family:var(--mono);font-size:11px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.hud b{color:var(--text);font-weight:600}
+
+main{flex:1;min-height:0}
+.tab{display:none;height:100%}
+.tab.on{display:flex}
+
+aside{width:340px;flex:none;background:var(--panel);border-right:1px solid var(--line);
+  overflow-y:auto;padding-bottom:40px}
+.sec{border-bottom:1px solid var(--line)}
+.sec>summary{padding:9px 14px;cursor:pointer;font-weight:600;font-size:11px;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--muted);list-style:none;
+  display:flex;align-items:center;gap:7px;user-select:none}
+.sec>summary::-webkit-details-marker{display:none}
+.sec>summary::before{content:"▸";color:var(--dim);font-size:9px;transition:transform .12s}
+.sec[open]>summary::before{transform:rotate(90deg)}
+.sec>summary:hover{color:var(--text)}
+.sec>summary .step{background:var(--panel3);border-radius:4px;padding:0 5px;
+  font-family:var(--mono);color:var(--fda);font-size:10px}
+.body{padding:2px 14px 14px}
+
+label.f{display:block;margin:9px 0 0}
+label.f>span{display:flex;justify-content:space-between;align-items:baseline;
+  color:var(--muted);margin-bottom:4px;font-size:11.5px;gap:6px}
+label.f>span b{font-family:var(--mono);color:var(--text);font-weight:600;
+  font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--mark);height:18px}
+input[type=text],input[type=number],select,textarea{width:100%;background:var(--bg);
+  border:1px solid var(--line2);border-radius:5px;padding:5px 7px;font-family:var(--mono);
+  font-variant-numeric:tabular-nums}
+textarea{font-family:var(--ui);resize:vertical;min-height:40px}
+.row{display:flex;gap:7px}
+.row>*{flex:1;min-width:0}
+.chk{display:flex;align-items:center;gap:7px;margin:7px 0;cursor:pointer;color:var(--muted)}
+.chk input{accent-color:var(--mark);width:14px;height:14px;flex:none}
+.chk:hover{color:var(--text)}
+.lbl{flex:1}
+
+.q{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;
+  border-radius:50%;border:1px solid var(--line2);color:var(--dim);font-size:9px;
+  font-weight:700;cursor:help;flex:none;user-select:none}
+.q:hover{border-color:var(--mark);color:var(--mark)}
+#tip{position:fixed;z-index:999;max-width:270px;background:#0A0D12;color:var(--text);
+  border:1px solid var(--line2);border-radius:7px;padding:8px 11px;font-size:11.5px;
+  line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.6);pointer-events:none;
+  opacity:0;transition:opacity .12s}
+#tip.on{opacity:1}
+
+.btn{background:var(--panel3);border:1px solid var(--line2);border-radius:5px;
+  padding:6px 10px;cursor:pointer;font-weight:500}
+.btn:hover{background:var(--line2)}
+.btn.pri{background:var(--fda);border-color:var(--fda);color:#08130C;font-weight:650}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.sm{padding:4px 8px;font-size:11.5px}
+.btn.ghost{background:none}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btns{display:flex;gap:7px;margin-top:11px;flex-wrap:wrap}
+
+.drop{border:1.5px dashed var(--line2);border-radius:8px;padding:16px 12px;text-align:center;
+  color:var(--muted);cursor:pointer;transition:.12s}
+.drop:hover,.drop.over{border-color:var(--fda);color:var(--text);background:rgba(95,224,138,.05)}
+.drop b{display:block;color:var(--text);margin-bottom:2px}
+.drop small{font-size:11px;color:var(--dim)}
+
+.queue{margin-top:9px;max-height:260px;overflow-y:auto}
+.qi{display:flex;flex-direction:column;gap:2px;padding:6px 8px;border-radius:6px;
+  border:1px solid var(--line);background:var(--panel2);cursor:pointer;margin-bottom:5px}
+.qi:hover{background:var(--panel3)}
+.qi.on{border-color:var(--fda);box-shadow:inset 2px 0 0 var(--fda)}
+.qi .top{display:flex;align-items:center;gap:6px}
+.qi input{background:none;border:1px solid transparent;border-radius:4px;padding:1px 4px;
+  font-family:var(--ui);font-size:12px;flex:1;min-width:0}
+.qi input:hover{border-color:var(--line2)}
+.qi input:focus{background:var(--bg);border-color:var(--focus)}
+.qi .sub{display:flex;gap:9px;font-family:var(--mono);font-size:10px;color:var(--dim);
+  padding-left:5px;flex-wrap:wrap}
+.qi .g{color:var(--germ)}.qi .e{color:var(--mark)}.qi .s{color:var(--fda)}
+.qi .n{font-family:var(--mono);font-size:11px;color:var(--fda);
+  font-variant-numeric:tabular-nums}
+
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:4px}
+.stat{background:var(--panel2);padding:8px 10px}
+.stat span{display:block;color:var(--dim);font-size:10px;text-transform:uppercase;
+  letter-spacing:.06em;margin-bottom:2px}
+.stat b{font-family:var(--mono);font-size:16px;font-weight:600;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat.wide{grid-column:span 2}
+.stat.hl b{color:var(--fda)}
+
+.tools3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.tool{display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+  background:var(--panel2);border:1px solid var(--line2);border-radius:6px;
+  padding:7px 8px;cursor:pointer;text-align:left}
+.tool:hover{background:var(--panel3)}
+.tool[aria-pressed="true"]{border-color:var(--k,var(--mark));
+  box-shadow:inset 0 0 0 1px var(--k,var(--mark));background:var(--panel3)}
+.tool b{font-weight:600;font-size:12px}
+.tool small{color:var(--dim);font-size:9.5px;font-family:var(--mono)}
+
+.mlist{margin-top:8px;max-height:130px;overflow-y:auto;font-family:var(--mono);font-size:11.5px}
+.mrow{display:flex;align-items:center;gap:8px;padding:3px 6px;border-radius:4px;cursor:pointer}
+.mrow:hover{background:var(--panel2)}
+.mrow.sel{background:rgba(255,176,32,.18)}
+.mrow .i{color:var(--dim);width:22px}
+.mrow .v{flex:1;font-variant-numeric:tabular-nums}
+.mrow button{background:none;border:0;color:var(--dim);cursor:pointer;padding:0 4px}
+.mrow button:hover{color:var(--pi)}
+.empty{color:var(--dim);font-size:11.5px;padding:6px 0;font-style:italic}
+
+.gtable{max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:6px;margin-top:6px}
+.gtable table{font-size:11.5px}
+.gtable th{background:var(--panel);cursor:pointer;user-select:none;padding:5px 8px;font-size:10px}
+.gtable th:hover{color:var(--text)}
+.gtable th .ar{color:var(--mark);font-size:8px}
+.gtable td{padding:3px 8px;border-bottom:1px solid var(--line)}
+.gtable tr{cursor:pointer}
+.gtable tr.sel td{background:rgba(255,176,32,.16)}
+.gtable tr.out td{color:var(--dim);text-decoration:line-through}
+.gtable tr:hover td{background:var(--panel2)}
+.rlist{margin-top:7px;font-family:var(--mono);font-size:11px}
+.rrow{display:flex;align-items:center;gap:7px;padding:3px 6px;border-radius:4px;color:var(--muted)}
+.rrow:hover{background:var(--panel2)}
+.rrow .sw{width:9px;height:9px;border-radius:2px;flex:none}
+.rrow .v{flex:1}
+.rrow button{background:none;border:0;color:var(--dim);cursor:pointer;padding:0 4px}
+.rrow button:hover{color:var(--pi)}
+
+.view{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+.vbar{display:flex;align-items:center;gap:10px;padding:6px 12px;height:38px;flex:none;
+  border-bottom:1px solid var(--line);background:var(--panel)}
+.seg{display:flex;background:var(--bg);border:1px solid var(--line2);border-radius:5px;
+  overflow:hidden}
+.seg button{background:none;border:0;padding:4px 9px;cursor:pointer;color:var(--muted);
+  font-size:11.5px}
+.seg button[aria-pressed="true"]{background:var(--panel3);color:var(--text)}
+.hint{font-size:11.5px;color:var(--dim);font-family:var(--mono)}
+.panes{flex:1;display:flex;min-height:0;overflow:hidden}
+.pane{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--line)}
+.pane:last-child{border-right:0}
+.plabel{padding:4px 10px;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--dim);border-bottom:1px solid var(--line);background:var(--panel);flex:none;
+  display:flex;justify-content:space-between;gap:8px}
+.scroll{flex:1;overflow:auto;position:relative;
+  background:repeating-conic-gradient(#12161C 0% 25%,#0C1015 0% 50%) 50%/16px 16px}
+.stack{position:relative;transform-origin:0 0;line-height:0}
+.stack canvas{display:block;position:absolute;top:0;left:0;image-rendering:pixelated}
+.stack canvas.base{position:relative}
+.blank{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--dim);font-size:12px;pointer-events:none;text-align:center;padding:20px}
+
+.page{flex:1;overflow:auto;padding:18px 22px}
+.page h2{margin:0 0 3px;font-size:16px;font-weight:650}
+.page p.sub{margin:0 0 16px;color:var(--muted);font-size:12px}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th,td{border-bottom:1px solid var(--line);padding:6px 9px;text-align:left;white-space:nowrap}
+th{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;
+  font-weight:600;position:sticky;top:0;background:var(--bg);z-index:1}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+tbody tr:hover{background:var(--panel)}
+td input{background:none;border:1px solid transparent;border-radius:4px;padding:2px 5px;
+  font-family:var(--ui);width:110px}
+td input:hover{border-color:var(--line2)}
+td input:focus{background:var(--bg);border-color:var(--focus)}
+.del{background:none;border:0;color:var(--dim);cursor:pointer;font-size:14px;padding:0 4px}
+.del:hover{color:var(--pi)}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:14px 16px;
+  margin-bottom:14px}
+.card h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--muted);font-weight:600}
+.grid2{display:grid;grid-template-columns:340px 1fr;gap:14px;align-items:start}
+.note{color:var(--muted);font-size:11.5px;line-height:1.55}
+.warn{border-left:2px solid var(--mark);padding-left:10px;color:var(--muted);font-size:11.5px}
+.bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--fda);width:0;transition:width .15s}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px;border:2px solid var(--bg)}
+::-webkit-scrollbar-track{background:transparent}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel3);
+  border:1px solid var(--line2);border-radius:7px;padding:8px 15px;font-size:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);opacity:0;pointer-events:none;
+  transition:opacity .18s,transform .18s;z-index:99}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="brand"><span class="dot"></span>PollenLab <small>germination &amp; viability</small></div>
+  <nav role="tablist">
+    <button role="tab" data-tab="analyze" aria-selected="true">Analyze</button>
+    <button role="tab" data-tab="viab" aria-selected="false">Viability</button>
+    <button role="tab" data-tab="data" aria-selected="false">Data</button>
+    <button role="tab" data-tab="stats" aria-selected="false">Statistics</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="hud">
+    <span>scale <b id="hudScale">not set</b></span>
+    <span>cursor <b id="hudXY">–</b></span>
+    <span>records <b id="hudRec">0</b></span>
+  </div>
+</header>
+<main>
+
+<!-- ══════════════ ANALYZE ══════════════ -->
+<section class="tab on" id="tab-analyze">
+<aside>
+
+  <details class="sec" open><summary><span class="step">1</span>Images</summary><div class="body">
+    <div class="drop" id="drop">
+      <b>Drop the whole set here</b>
+      <small>or click to browse · PNG / JPG</small>
+    </div>
+    <input type="file" id="file" accept="image/*" multiple hidden>
+    <div class="queue" id="queue"></div>
+    <p class="note" id="qNote" style="margin-top:6px">No images loaded.</p>
+    <div class="btns"><button class="btn sm ghost" id="clrQueue">Clear queue</button></div>
+  </div></details>
+
+  <details class="sec" open><summary><span class="step">2</span>Scale
+    <span class="q" data-tip="Draw a line along the scale bar, then enter its real length. One calibration is used for every image, which assumes the whole set was imaged at the same magnification. Without it, areas are reported in pixels².">?</span>
+  </summary><div class="body">
+    <div class="row">
+      <label class="f"><span>Known distance</span>
+        <input type="number" id="scKnown" value="1000" step="any"></label>
+      <label class="f"><span>Unit</span><input type="text" id="scUnit" value="µm"></label>
+    </div>
+    <div class="btns">
+      <button class="btn sm" id="scStart">Draw on scale bar</button>
+      <button class="btn sm ghost" id="scClear">Clear</button>
+    </div>
+    <div class="stats" style="margin-top:10px">
+      <div class="stat wide"><span>Calibration</span><b id="scOut">not set</b></div>
+    </div>
+  </div></details>
+
+  <details class="sec" open><summary><span class="step">3</span>Detection
+    <span class="q" data-tip="These settings belong to the image you have open. Adjust them per image, or press Apply to all images once you are happy with one.">?</span>
+  </summary><div class="body">
+    <label class="chk"><input type="checkbox" id="pBg" checked><span class="lbl">Flatten background</span>
+      <span class="q" data-tip="Subtracts a blurred copy of the image to remove uneven illumination and vignetting. It also pins the background near white, which is what keeps thresholding stable between images.">?</span></label>
+    <label class="f" id="wBgR"><span>Background radius <b id="vBgR">50 px</b>
+      <span class="q" data-tip="Size of the blur used to estimate the background. Must be clearly larger than one grain — if it is too small the grains get treated as background and erased.">?</span></span>
+      <input type="range" id="pBgR" min="10" max="200" step="5" value="50"></label>
+    <label class="f"><span>Darker than <b id="vThr">225</b>
+      <span class="q" data-tip="Pixels darker than this count as pollen. After background flattening the background sits near 255, so the useful range is high. Raise it to catch faint grains, lower it to be stricter.">?</span></span>
+      <input type="range" id="pThr" min="1" max="254" value="225"></label>
+    <div class="btns" style="margin-top:6px">
+      <button class="btn sm" id="otsu">Auto threshold</button>
+      <button class="btn sm ghost" id="otsuAll">Auto for all</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="pDes" checked><span class="lbl">Remove speckles</span>
+      <span class="q" data-tip="3×3 majority filter. Deletes isolated single-pixel noise that would otherwise be counted as tiny objects.">?</span></label>
+    <label class="chk"><input type="checkbox" id="pFill" checked><span class="lbl">Fill holes</span>
+      <span class="q" data-tip="Closes the translucent centre of empty grains, so each grain counts once instead of as a ring.">?</span></label>
+    <label class="chk"><input type="checkbox" id="pSplit" checked><span class="lbl">Split touching grains</span>
+      <span class="q" data-tip="Watershed separation of clumps using a distance transform. Without it, a whole cluster is counted as one object.">?</span></label>
+    <label class="f"><span>Split sensitivity <b id="vSplit">2</b>
+      <span class="q" data-tip="How much the distance map is smoothed before splitting. Lower splits more aggressively; raise it if single grains are being cut in two.">?</span></span>
+      <input type="range" id="pSplitS" min="0" max="8" value="2"></label>
+  </div></details>
+
+  <details class="sec" open><summary><span class="step">4</span>Filters</summary><div class="body">
+    <div class="row">
+      <label class="f"><span>Min area
+        <span class="q" data-tip="Objects smaller than this are discarded — debris, dust, noise. Select a real grain first to see a sensible value.">?</span></span>
+        <input type="number" id="pMin" value="50" step="any"></label>
+      <label class="f"><span>Max area
+        <span class="q" data-tip="Objects larger than this are discarded. Useful for rejecting clumps the splitter could not resolve. Leave blank for no limit.">?</span></span>
+        <input type="number" id="pMax" placeholder="∞" step="any"></label>
+    </div>
+    <p class="note" style="margin:5px 0 0" id="areaUnit">units: px²</p>
+    <div class="row" style="margin-top:8px">
+      <label class="f"><span>Circ. min
+        <span class="q" data-tip="Circularity = 4πA/P². A perfect circle is 1.0. Pollen grains sit near 1; tubes, debris and merged clumps sit lower, so a floor around 0.2 removes them.">?</span></span>
+        <input type="number" id="pC0" value="0.2" step="0.05"></label>
+      <label class="f"><span>Circ. max</span><input type="number" id="pC1" value="1" step="0.05"></label>
+    </div>
+    <label class="chk"><input type="checkbox" id="pEdge" checked><span class="lbl">Exclude border grains</span>
+      <span class="q" data-tip="Drops grains cut off by the image edge, or by the crop edge. Their areas are incomplete and would bias the size distribution.">?</span></label>
+    <div class="btns">
+      <button class="btn sm" id="applyAll">Apply to all images</button>
+    </div>
+    <p class="note" style="margin-top:6px">Copies steps 3 and 4 to every image in the queue.
+      Manual corrections are never copied.</p>
+  </div></details>
+
+  <details class="sec" open><summary><span class="step">5</span>Regions</summary><div class="body">
+    <div class="tools3" style="grid-template-columns:1fr 1fr">
+      <button class="tool" data-tool="crop" style="--k:var(--fda)" aria-pressed="false">
+        <b>Crop</b><small>drag a box</small></button>
+      <button class="tool" data-tool="ign" style="--k:var(--pi)" aria-pressed="false">
+        <b>Ignore</b><small>drag a box</small></button>
+    </div>
+    <p class="note" style="margin-top:7px">Crop restricts counting to one rectangle;
+      ignore masks out crowded or damaged patches. The image itself is never altered.</p>
+    <div class="rlist" id="rlist"></div>
+  </div></details>
+
+  <details class="sec" open><summary><span class="step">6</span>Correct &amp; score</summary><div class="body">
+    <div class="tools3">
+      <button class="tool" data-tool="sel" style="--k:var(--mark)" aria-pressed="false">
+        <b>Select</b><small>read area</small></button>
+      <button class="tool" data-tool="add" style="--k:var(--fda)" aria-pressed="false">
+        <b>Add grain</b><small>click centre</small></button>
+      <button class="tool" data-tool="split" style="--k:var(--pi)" aria-pressed="false">
+        <b>Split</b><small>drag a cut</small></button>
+      <button class="tool" data-tool="germ" style="--k:var(--germ)" aria-pressed="false">
+        <b>Germinated</b><small>click grain</small></button>
+      <button class="tool" data-tool="len" style="--k:var(--mark)" aria-pressed="false">
+        <b>Tube length</b><small>path · Esc</small></button>
+      <button class="tool" data-tool="wid" style="--k:var(--scale)" aria-pressed="false">
+        <b>Tube width</b><small>drag across</small></button>
+    </div>
+    <div class="btns" style="margin-top:8px">
+      <button class="btn sm ghost" data-tool="none" id="tNone">Pan / off</button>
+      <span class="q" data-tip="Add grain grows the grain from your click with a local threshold, so it gets a real measured area rather than an assumed one. Right-click anything — a grain, a cut, a marker — to remove it.">?</span>
+    </div>
+    <div class="stats" style="margin-top:9px">
+      <div class="stat wide"><span>Selected grain</span><b id="selInfo">none</b></div>
+    </div>
+    <div style="margin-top:11px">
+      <div style="display:flex;justify-content:space-between;color:var(--muted);font-size:11px">
+        <span>Tube lengths</span><span id="nLen">0</span></div>
+      <div class="mlist" id="listLen"></div>
+    </div>
+    <div style="margin-top:9px">
+      <div style="display:flex;justify-content:space-between;color:var(--muted);font-size:11px">
+        <span>Tube widths</span><span id="nWid">0</span></div>
+      <div class="mlist" id="listWid"></div>
+    </div>
+    <div class="btns">
+      <button class="btn sm ghost" id="clrGerm">Clear germinated</button>
+      <button class="btn sm ghost" id="clrMeas">Clear tubes</button>
+      <button class="btn sm ghost" id="clrFix">Undo corrections</button>
+    </div>
+  </div></details>
+
+  <details class="sec" open><summary>Counts — this image</summary><div class="body">
+    <div class="stats">
+      <div class="stat"><span>Total pollen</span><b id="oCount">–</b></div>
+      <div class="stat hl"><span>Germinated</span><b id="oGerm">0</b></div>
+      <div class="stat wide hl"><span>Germination rate</span><b id="oRate">–</b></div>
+      <div class="stat"><span>Mean grain area</span><b id="oArea">–</b></div>
+      <div class="stat"><span>Removed by hand</span><b id="oExcl">0</b></div>
+      <div class="stat"><span>Mean tube length</span><b id="oLen">–</b></div>
+      <div class="stat"><span>Mean tube width</span><b id="oWid">–</b></div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+      <label class="chk" style="margin:0"><input type="checkbox" id="showIds">
+        <span class="lbl">Show numbers</span></label>
+      <div class="spacer"></div>
+      <button class="btn sm ghost" id="clrExcl">Restore all</button>
+    </div>
+    <div class="gtable" id="gtable"></div>
+    <p class="note" style="margin-top:7px">Sort by area to find outliers — merged pairs
+      sit at the top with low circularity. Click a row to locate it, again to drop it.</p>
+  </div></details>
+
+  <details class="sec" open><summary><span class="step">7</span>Save</summary><div class="body">
+    <label class="f"><span>Group name for this set
+      <span class="q" data-tip="Give every replicate of the same treatment the SAME group name — for example 'Sucrose 5%' on all of its images. Statistics compares groups, so each group needs several images to have an n.">?</span></span>
+      <input type="text" id="mGroup" placeholder="e.g. Sucrose 5%" list="groupList"></label>
+    <datalist id="groupList"></datalist>
+    <p class="note" style="margin-top:6px">Replicates of one treatment share one group
+      name — <code>Sucrose 5%</code> on every image of that treatment,
+      <code>Sucrose 10%</code> on every image of the next. The sample name (in the queue)
+      stays unique per image.</p>
+    <div class="btns">
+      <button class="btn pri" id="saveAll">Save all to dataset</button>
+      <button class="btn ghost" id="updateAll">Update saved</button>
+    </div>
+    <p class="note" style="margin-top:9px" id="saveNote">
+      Writes one record per image. Images already in the dataset are skipped —
+      use <b>Update saved</b> to rewrite them after a change.</p>
+  </div></details>
+
+  <details class="sec" open><summary>Session</summary><div class="body">
+    <p class="note" style="margin:2px 0 8px">Your work is auto-saved as you go and
+      restored when you reopen this page. Save a session file as well before anything
+      important — it is the only copy that survives clearing browser data.</p>
+    <label class="chk"><input type="checkbox" id="sessImgs">
+      <span class="lbl">Include the images</span>
+      <span class="q" data-tip="Off: the file stores your settings, corrections, marks and records only — small, and it re-attaches automatically when you drop the same image files again. On: the images are embedded too, so the file restores everything on its own, but it will be many megabytes.">?</span></label>
+    <div class="btns">
+      <button class="btn" id="sessSave">Save session</button>
+      <button class="btn" id="sessLoad">Load session</button>
+      <input type="file" id="sessFile" accept=".json" hidden>
+    </div>
+    <p class="note" style="margin-top:8px" id="sessNote"></p>
+  </div></details>
+</aside>
+
+<div class="view">
+  <div class="vbar">
+    <div class="seg" id="viewMode">
+      <button data-v="overlay" aria-pressed="true">Mask</button>
+      <button data-v="binary" aria-pressed="false">Binary</button>
+      <button data-v="outline" aria-pressed="false">Outlines</button>
+    </div>
+    <div class="seg" id="zoomSeg">
+      <button data-z="out">−</button><button data-z="fit">Fit</button>
+      <button data-z="1">100%</button><button data-z="in">+</button>
+    </div>
+    <span class="hint" id="zoomOut">100%</span>
+    <div class="spacer"></div>
+    <span class="hint" id="toolHint">Pan / off</span>
+    <span class="hint" id="busy"></span>
+  </div>
+  <div class="panes">
+    <div class="pane">
+      <div class="plabel"><span>Original</span><span id="lblA"></span></div>
+      <div class="scroll" id="scrollA">
+        <div class="stack" id="stackA">
+          <canvas class="base" id="baseA"></canvas><canvas id="ovA"></canvas>
+        </div>
+        <div class="blank" id="blankA">Load images to begin</div>
+      </div>
+    </div>
+    <div class="pane">
+      <div class="plabel"><span>Detection</span><span id="lblB"></span></div>
+      <div class="scroll" id="scrollB">
+        <div class="stack" id="stackB">
+          <canvas class="base" id="baseB"></canvas><canvas id="ovB"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════ VIABILITY ══════════════ -->
+<section class="tab" id="tab-viab">
+<aside>
+  <details class="sec" open><summary><span class="step">1</span>Images</summary><div class="body">
+    <div class="drop" id="vdrop">
+      <b>Drop FDA / PI images</b>
+      <small>or click to browse · RGB fluorescence</small>
+    </div>
+    <input type="file" id="vfile" accept="image/*" multiple hidden>
+    <div class="queue" id="vqueue"></div>
+    <p class="note" id="vqNote" style="margin-top:6px">No images loaded.</p>
+  </div></details>
+
+  <details class="sec" open><summary><span class="step">2</span>Staining mode
+    <span class="q" data-tip="Channels are read straight from the RGB image: green = FDA (live), red = PI (dead). Fluorescence is treated as bright signal on a dark field. This setting applies to the open image only.">?</span>
+  </summary><div class="body">
+    <select id="vMode">
+      <option value="both">Combined FDA + PI</option>
+      <option value="fda">FDA only — live</option>
+      <option value="pi">PI only — dead</option>
+    </select>
+  </div></details>
+
+  <details class="sec" open id="secG"><summary><span class="step">3</span>FDA — live</summary><div class="body">
+    <label class="f"><span>Brighter than <b id="vGt">70</b>
+      <span class="q" data-tip="Green-channel brightness above which a grain counts as FDA-positive. Raise it if background haze is being counted; lower it if faint live grains are missed.">?</span></span>
+      <input type="range" id="gThr" min="1" max="254" value="70"></label>
+    <label class="f"><span>Min object size <b id="vGs">30 px²</b></span>
+      <input type="range" id="gMin" min="1" max="400" value="30"></label>
+    <label class="chk"><input type="checkbox" id="gBleed" checked><span class="lbl">Subtract red bleed</span>
+      <span class="q" data-tip="Subtracts a fraction of the red channel to suppress cross-talk, so a strongly PI-positive grain is not also read as FDA-positive.">?</span></label>
+  </div></details>
+
+  <details class="sec" open id="secR"><summary><span class="step">4</span>PI — dead</summary><div class="body">
+    <label class="f"><span>Brighter than <b id="vRt">70</b></span>
+      <input type="range" id="rThr" min="1" max="254" value="70"></label>
+    <label class="f"><span>Min object size <b id="vRs">30 px²</b></span>
+      <input type="range" id="rMin" min="1" max="400" value="30"></label>
+    <label class="chk"><input type="checkbox" id="rBleed" checked><span class="lbl">Subtract green bleed</span></label>
+    <label class="chk"><input type="checkbox" id="vDual" checked><span class="lbl">Double-positive = dead</span>
+      <span class="q" data-tip="A grain positive in both channels normally has a compromised membrane, so PI entry takes precedence and it is scored dead.">?</span></label>
+    <div class="btns"><button class="btn sm" id="vApplyAll">Apply to all images</button></div>
+  </div></details>
+
+  <details class="sec" open><summary><span class="step">5</span>Correct</summary><div class="body">
+    <div class="tools3" style="grid-template-columns:1fr 1fr">
+      <button class="tool vtool" data-vtool="addG" style="--k:var(--fda)" aria-pressed="false">
+        <b>Add live</b><small>click centre</small></button>
+      <button class="tool vtool" data-vtool="addR" style="--k:var(--pi)" aria-pressed="false">
+        <b>Add dead</b><small>click centre</small></button>
+    </div>
+    <div class="btns">
+      <button class="btn sm ghost vtool" data-vtool="none" aria-pressed="true">Pan / off</button>
+      <button class="btn sm ghost" id="vClrFix">Undo corrections</button>
+    </div>
+    <p class="note" style="margin-top:7px">Right-click an object to drop it from the count.
+      If many objects are missing, the threshold is the better fix.</p>
+    <div class="stats" style="margin-top:9px">
+      <div class="stat"><span>Live (FDA+)</span><b id="vLive" style="color:var(--fda)">–</b></div>
+      <div class="stat"><span>Dead (PI+)</span><b id="vDead" style="color:var(--pi)">–</b></div>
+      <div class="stat wide hl"><span>Viability</span><b id="vPct">–</b></div>
+    </div>
+  </div></details>
+
+  <details class="sec" open><summary><span class="step">6</span>Save</summary><div class="body">
+    <label class="f"><span>Group name for this set</span>
+      <input type="text" id="vGroup" placeholder="Control"></label>
+    <div class="btns">
+      <button class="btn pri" id="vSaveAll">Save all to dataset</button>
+      <button class="btn ghost" id="vClrQueue">Clear queue</button>
+    </div>
+  </div></details>
+</aside>
+
+<div class="view">
+  <div class="vbar">
+    <div class="seg" id="vZoomSeg">
+      <button data-z="out">−</button><button data-z="fit">Fit</button>
+      <button data-z="1">100%</button><button data-z="in">+</button>
+    </div>
+    <span class="hint" id="vZoomOut">100%</span>
+    <div class="spacer"></div>
+    <span class="hint">Green = live · Red = dead</span>
+  </div>
+  <div class="panes">
+    <div class="pane">
+      <div class="plabel"><span>Original</span><span id="vLblA"></span></div>
+      <div class="scroll" id="vScrollA"><div class="stack" id="vStackA">
+        <canvas class="base" id="vBaseA"></canvas><canvas id="vOvA"></canvas></div>
+        <div class="blank" id="vBlank">Load fluorescence images to begin</div></div>
+    </div>
+    <div class="pane">
+      <div class="plabel"><span>Segmentation</span><span id="vLblB"></span></div>
+      <div class="scroll" id="vScrollB"><div class="stack" id="vStackB">
+        <canvas class="base" id="vBaseB"></canvas><canvas id="vOvB"></canvas></div></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════ DATA ══════════════ -->
+<section class="tab" id="tab-data">
+  <div class="page">
+    <h2>Dataset</h2>
+    <p class="sub">Every saved record, keyed to its image file. Sample and group are editable.
+      Deleting a row never touches the image analysis — the image simply becomes unsaved
+      again and can be re-saved.</p>
+    <div class="toolbar">
+      <button class="btn" id="expCsv">Export CSV</button>
+      <button class="btn" id="expJson">Save session (.json)</button>
+      <button class="btn" id="impBtn">Load session</button>
+      <input type="file" id="impJson" accept=".json" hidden>
+      <div class="spacer"></div>
+      <button class="btn ghost" id="clrAll">Delete all</button>
+    </div>
+    <div id="dataWrap"></div>
+  </div>
+</section>
+
+<!-- ══════════════ STATISTICS ══════════════ -->
+<section class="tab" id="tab-stats">
+  <div class="page">
+    <h2>Statistics</h2>
+    <p class="sub">Compare a measurement across groups. Records without a value for the
+      chosen measurement are skipped.</p>
+    <div class="grid2">
+      <div>
+        <div class="card">
+          <h3>Setup</h3>
+          <label class="f"><span>Measurement</span>
+            <select id="sMetric">
+              <optgroup label="One value per image">
+                <option value="germinationPct">Germination rate (%)</option>
+                <option value="total">Total pollen count</option>
+                <option value="germinated">Germinated pollen count</option>
+                <option value="meanArea">Mean grain area</option>
+                <option value="meanLen">Mean tube length</option>
+                <option value="meanWid">Mean tube width</option>
+                <option value="viabilityPct">Viability (%)</option>
+                <option value="live">Live count</option>
+                <option value="dead">Dead count</option>
+              </optgroup>
+              <optgroup label="Every measurement (distribution)">
+                <option value="*areas">Grain area — every grain</option>
+                <option value="*lens">Tube length — every tube</option>
+                <option value="*wids">Tube width — every tube</option>
+              </optgroup>
+            </select></label>
+          <label class="f"><span>Group by</span>
+            <select id="sBy"><option value="group">Group</option>
+              <option value="sample">Sample</option></select></label>
+          <label class="f"><span>Error bars</span>
+            <select id="sErr"><option value="sem">± SEM</option>
+              <option value="sd">± SD</option></select></label>
+          <div class="btns"><button class="btn" id="sRun">Run analysis</button>
+            <button class="btn ghost" id="sExp">Export summary</button></div>
+        </div>
+        <div class="card" id="sTest"><h3>Significance test</h3>
+          <p class="note">Run an analysis to see the test.</p></div>
+      </div>
+      <div>
+        <div class="card"><h3>Group summary</h3>
+          <div id="sTable"><p class="note">No analysis yet.</p></div></div>
+        <div class="card"><h3>Plot</h3>
+          <canvas id="chart" style="width:100%;height:340px"></canvas></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+<div id="tip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const clamp = (v,a,b) => v<a?a:v>b?b:v;
+const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "–" : (+v).toFixed(d);
+const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+let toastT;
+function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("on");
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),2200); }
+
+/* ═══════════════ tooltips ═══════════════ */
+const tip=$("#tip");
+document.addEventListener("mouseover",e=>{
+  const q=e.target.closest("[data-tip]"); if(!q) return;
+  tip.textContent=q.dataset.tip;
+  const r=q.getBoundingClientRect();
+  tip.style.left="0px"; tip.style.top="0px"; tip.classList.add("on");
+  const tr=tip.getBoundingClientRect();
+  let x=r.left+r.width/2-tr.width/2, y=r.top-tr.height-8;
+  if(y<8) y=r.bottom+8;
+  tip.style.left=clamp(x,8,innerWidth-tr.width-8)+"px"; tip.style.top=y+"px";
+});
+document.addEventListener("mouseout",e=>{
+  if(e.target.closest("[data-tip]")) tip.classList.remove("on"); });
+
+/* ═══════════════ state ═══════════════ */
+const DEF = () => ({ bgOn:true, bgR:50, thr:225, des:true, fill:true,
+  split:true, splitS:2, minA:50, maxA:NaN, c0:0.2, c1:1, edge:true });
+const ANN = () => ({ roi:null, ign:[], cuts:[], excl:[], adds:[],
+  germ:[], lens:[], wids:[] });
+
+const S = { imgs:[], cur:-1, zoom:1, view:"overlay", tool:"none", draft:null,
+  scale:{perUnit:null,unit:"µm",p1:null,p2:null},
+  sel:null, selMeas:null, selMask:null, showIds:false, sort:{k:"no",dir:1},
+  records:[] };
+
+const VDEF = () => ({ mode:"both", gThr:70, gMin:30, rThr:70, rMin:30,
+  gBleed:true, rBleed:true, dual:true });
+const V = { imgs:[], cur:-1, zoom:1, tool:"none" };
+
+/* ═══════════════ storage ═══════════════ */
+const KEY="pollenlab:session";
+
+/* An image counts as saved only while its record actually exists. Deleting rows in
+   the Data tab therefore frees the image to be saved again, and never touches the
+   analysis itself. */
+const isSaved = im => im.recId!=null && S.records.some(r=>r.id===im.recId);
+const vIsSaved = im => im.recId!=null && S.records.some(r=>r.id===im.recId);
+
+function annPlain(a){ return JSON.parse(JSON.stringify(a)); }
+function paramsPlain(P){ const o={...P};
+  if(!isFinite(o.maxA)) o.maxA=null; return o; }
+function paramsRestore(o){ const P={...DEF(),...o};
+  P.maxA = (o&&o.maxA!=null) ? +o.maxA : NaN; return P; }
+
+function sessionObj(){
+  return { v:3, saved:new Date().toISOString(),
+    scale:{perUnit:S.scale.perUnit,unit:S.scale.unit},
+    records:S.records,
+    imgs:S.imgs.map(im=>({name:im.name,sample:im.sample,recId:im.recId,
+      P:paramsPlain(im.P),ann:annPlain(im.ann)})),
+    viab:V.imgs.map(im=>({name:im.name,sample:im.sample,recId:im.recId,
+      P:{...im.P},ann:annPlain(im.ann)})) }; }
+
+let autoT;
+function autosave(){ clearTimeout(autoT); autoT=setTimeout(async()=>{
+  try{ if(window.storage) await window.storage.set(KEY,JSON.stringify(sessionObj())); }
+  catch(e){ /* storage unavailable or full — the session file is the real safeguard */ }
+  stampSession(); },600); }
+const persist = autosave;
+
+function stampSession(){
+  const n=S.imgs.length+V.imgs.length;
+  $("#sessNote").textContent = n
+    ? `Auto-saved · ${S.imgs.length} brightfield, ${V.imgs.length} fluorescence, `+
+      `${S.records.length} records.`
+    : `Auto-saved · ${S.records.length} records.`; }
+
+function applySession(o,quiet){
+  if(!o) return;
+  if(Array.isArray(o)) { S.records=o; renderData(); return; }
+  if(Array.isArray(o.records)) S.records=o.records;
+  if(o.scale&&o.scale.perUnit){ S.scale.perUnit=o.scale.perUnit;
+    S.scale.unit=o.scale.unit||"µm";
+    const s=fmt(S.scale.perUnit,3)+" px / "+S.scale.unit;
+    $("#scOut").textContent=s; $("#hudScale").textContent=s;
+    $("#scUnit").value=S.scale.unit; }
+  S.pending={}; V.pending={};
+  for(const e of (o.imgs||[])) S.pending[e.name]=e;
+  for(const e of (o.viab||[])) V.pending[e.name]=e;
+  /* re-attach to anything already in the queue */
+  for(const im of S.imgs) adopt(im,S.pending[im.name]);
+  for(const im of V.imgs) vAdopt(im,V.pending[im.name]);
+  renderData(); renderQueue(); vRenderQueue();
+  if(S.cur>=0){ syncControls(); run(); }
+  const waiting=Object.keys(S.pending).length+Object.keys(V.pending).length;
+  if(!quiet) toast(`Session loaded — ${S.records.length} records`+
+    (waiting?`, ${waiting} images waiting to be re-dropped`:""));
+  stampSession(); }
+function adopt(im,e){ if(!e) return false;
+  im.sample=e.sample||im.sample; im.P=paramsRestore(e.P);
+  im.ann={...ANN(),...(e.ann||{})}; im.recId=e.recId??null; im.res=null;
+  delete S.pending[im.name]; return true; }
+function vAdopt(im,e){ if(!e) return false;
+  im.sample=e.sample||im.sample; im.P={...VDEF(),...(e.P||{})};
+  im.ann={addG:[],addR:[],exclG:[],exclR:[],...(e.ann||{})};
+  im.recId=e.recId??null; im.res=null; delete V.pending[im.name]; return true; }
+
+async function restore(){
+  try{ if(!window.storage) return;
+    let r=null;
+    try{ r=await window.storage.get(KEY); }catch(e){}
+    if(!r||!r.value){ try{ const old=await window.storage.get("pollenlab:records");
+        if(old&&old.value){ S.records=JSON.parse(old.value); renderData(); } }catch(e){}
+      return; }
+    applySession(JSON.parse(r.value),true);
+    const waiting=Object.keys(S.pending||{}).length+Object.keys(V.pending||{}).length;
+    if(waiting) toast(`Previous session restored — drop the same ${waiting} image`+
+      `${waiting>1?"s":""} to bring your corrections back`);
+  }catch(e){} }
+
+$("#sessSave").onclick=async()=>{
+  const o=sessionObj();
+  if($("#sessImgs").checked){
+    const enc=arr=>arr.map(im=>{ const cv=document.createElement("canvas");
+      cv.width=im.W; cv.height=im.H; cv.getContext("2d").putImageData(im.data,0,0);
+      return cv.toDataURL("image/png"); });
+    o.imgData=enc(S.imgs); o.viabData=enc(V.imgs); }
+  const txt=JSON.stringify(o);
+  download("pollenlab_session.json",txt,"application/json");
+  toast("Session saved ("+Math.round(txt.length/1024)+" KB)"); };
+$("#sessLoad").onclick=()=>$("#sessFile").click();
+$("#sessFile").onchange=e=>{ const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ let o; try{ o=JSON.parse(rd.result); }
+    catch(_){ return toast("That file isn't a PollenLab session"); }
+    applySession(o);
+    if(o.imgData&&o.imgData.length){                   // embedded images
+      let left=o.imgData.length+((o.viabData||[]).length);
+      const mk=(url,e2,into)=>{ const el=new Image();
+        el.onload=()=>{ const cv=document.createElement("canvas");
+          cv.width=el.width; cv.height=el.height;
+          const cx=cv.getContext("2d"); cx.drawImage(el,0,0);
+          const data=cx.getImageData(0,0,el.width,el.height);
+          if(into==="S") S.imgs.push({name:e2.name,sample:e2.sample,W:el.width,H:el.height,
+            data,gray:toGray(data.data,el.width,el.height),P:paramsRestore(e2.P),
+            ann:{...ANN(),...(e2.ann||{})},res:null,recId:e2.recId??null});
+          else V.imgs.push({name:e2.name,sample:e2.sample,W:el.width,H:el.height,data,
+            P:{...VDEF(),...(e2.P||{})},
+            ann:{addG:[],addR:[],exclG:[],exclR:[],...(e2.ann||{})},res:null,
+            recId:e2.recId??null});
+          if(--left===0){ S.pending={}; V.pending={};
+            renderQueue(); vRenderQueue();
+            if(S.imgs.length) select(0); if(V.imgs.length) vSelect(0);
+            toast("Session restored with images"); } };
+        el.src=url; };
+      o.imgData.forEach((u,i)=>mk(u,o.imgs[i],"S"));
+      (o.viabData||[]).forEach((u,i)=>mk(u,o.viab[i],"V")); }
+    stampSession(); };
+  rd.readAsText(f); e.target.value=""; };
+
+addEventListener("beforeunload",e=>{
+  const dirty = S.imgs.some(im=>!isSaved(im)) || V.imgs.some(im=>!vIsSaved(im));
+  if(dirty){ e.preventDefault(); e.returnValue=""; } });
+
+/* ═══════════════ image processing ═══════════════ */
+function toGray(d,W,H){ const g=new Uint8ClampedArray(W*H);
+  for(let i=0,j=0;j<W*H;i+=4,j++) g[j]=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])|0;
+  return g; }
+function boxBlur(src,W,H,r){
+  const tmp=new Float32Array(W*H), out=new Float32Array(W*H), win=2*r+1;
+  for(let y=0;y<H;y++){ const o=y*W; let s=0;
+    for(let x=-r;x<=r;x++) s+=src[o+clamp(x,0,W-1)];
+    for(let x=0;x<W;x++){ tmp[o+x]=s/win;
+      s-=src[o+clamp(x-r,0,W-1)]; s+=src[o+clamp(x+r+1,0,W-1)]; } }
+  for(let x=0;x<W;x++){ let s=0;
+    for(let y=-r;y<=r;y++) s+=tmp[clamp(y,0,H-1)*W+x];
+    for(let y=0;y<H;y++){ out[y*W+x]=s/win;
+      s-=tmp[clamp(y-r,0,H-1)*W+x]; s+=tmp[clamp(y+r+1,0,H-1)*W+x]; } }
+  return out; }
+function flatten(gray,W,H,r){
+  const bg=boxBlur(gray,W,H,r), out=new Uint8ClampedArray(W*H);
+  for(let i=0;i<W*H;i++) out[i]=clamp(gray[i]-bg[i]+255,0,255);
+  return out; }
+function otsuH(h,N){
+  let sum=0; for(let t=0;t<256;t++) sum+=t*h[t];
+  let sB=0,wB=0,best=-1,thr=128;
+  for(let t=0;t<256;t++){ wB+=h[t]; if(!wB) continue; const wF=N-wB; if(!wF) break;
+    sB+=t*h[t]; const mB=sB/wB, mF=(sum-sB)/wF, v=wB*wF*(mB-mF)*(mB-mF);
+    if(v>best){best=v;thr=t;} }
+  return thr; }
+function otsu(src){ const h=new Array(256).fill(0);
+  for(let i=0;i<src.length;i++) h[src[i]]++; return otsuH(h,src.length); }
+function majority(mask,W,H){ const out=new Uint8Array(W*H);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){ let c=0;
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const nx=x+dx,ny=y+dy;
+      if(nx>=0&&ny>=0&&nx<W&&ny<H&&mask[ny*W+nx]) c++; }
+    out[y*W+x]=c>=5?1:0; } return out; }
+function fillHoles(mask,W,H){
+  const N=W*H, seen=new Uint8Array(N), st=new Int32Array(N); let sp=0;
+  const push=p=>{ if(!seen[p]&&!mask[p]){ seen[p]=1; st[sp++]=p; } };
+  for(let x=0;x<W;x++){ push(x); push((H-1)*W+x); }
+  for(let y=0;y<H;y++){ push(y*W); push(y*W+W-1); }
+  while(sp){ const p=st[--sp], x=p%W, y=(p/W)|0;
+    if(x>0)push(p-1); if(x<W-1)push(p+1); if(y>0)push(p-W); if(y<H-1)push(p+W); }
+  const out=new Uint8Array(N);
+  for(let i=0;i<N;i++) out[i]=(mask[i]||!seen[i])?1:0; return out; }
+function distance(mask,W,H){ const INF=1e9,d=new Float32Array(W*H);
+  for(let i=0;i<W*H;i++) d[i]=mask[i]?INF:0;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const i=y*W+x; if(!d[i])continue; let v=d[i];
+    if(y>0){ v=Math.min(v,d[i-W]+3); if(x>0)v=Math.min(v,d[i-W-1]+4);
+             if(x<W-1)v=Math.min(v,d[i-W+1]+4); }
+    if(x>0) v=Math.min(v,d[i-1]+3); d[i]=v; }
+  for(let y=H-1;y>=0;y--) for(let x=W-1;x>=0;x--){ const i=y*W+x; if(!d[i])continue; let v=d[i];
+    if(y<H-1){ v=Math.min(v,d[i+W]+3); if(x>0)v=Math.min(v,d[i+W-1]+4);
+               if(x<W-1)v=Math.min(v,d[i+W+1]+4); }
+    if(x<W-1) v=Math.min(v,d[i+1]+3); d[i]=v; }
+  for(let i=0;i<W*H;i++) d[i]/=3; return d; }
+function splitClumps(mask,W,H,smooth){
+  let dt=distance(mask,W,H); if(smooth>0) dt=boxBlur(dt,W,H,smooth);
+  let mx=0; for(let i=0;i<W*H;i++) if(dt[i]>mx) mx=dt[i];
+  if(mx<=0) return {labels:new Int32Array(W*H),n:0};
+  const N=W*H,B=511,key=new Int32Array(N),cnt=new Int32Array(B+1); let nfg=0;
+  for(let i=0;i<N;i++){ if(mask[i]){ const b=Math.min(B,(dt[i]/mx*B)|0);
+    key[i]=b; cnt[b]++; nfg++; } else key[i]=-1; }
+  const pos=new Int32Array(B+1); let acc=0;
+  for(let b=B;b>=0;b--){ pos[b]=acc; acc+=cnt[b]; }
+  const order=new Int32Array(nfg);
+  for(let i=0;i<N;i++){ const b=key[i]; if(b>=0) order[pos[b]++]=i; }
+  const lab=new Int32Array(N); let n=0;
+  for(let k=0;k<nfg;k++){ const i=order[k], x=i%W, y=(i/W)|0;
+    let f=0,conflict=false;
+    for(let dy=-1;dy<=1;dy++){ const ny=y+dy; if(ny<0||ny>=H)continue;
+      for(let dx=-1;dx<=1;dx++){ if(!dx&&!dy)continue; const nx=x+dx; if(nx<0||nx>=W)continue;
+        const L=lab[ny*W+nx]; if(L>0){ if(!f)f=L; else if(f!==L) conflict=true; } } }
+    lab[i]=conflict?-1:(f?f:++n); }
+  for(let i=0;i<N;i++) if(lab[i]<0) lab[i]=0;
+  return {labels:lab,n}; }
+function ccl(mask,W,H){
+  const N=W*H,lab=new Int32Array(N),st=new Int32Array(N); let n=0;
+  for(let i=0;i<N;i++){ if(!mask[i]||lab[i])continue; n++; lab[i]=n; let sp=0; st[sp++]=i;
+    while(sp){ const p=st[--sp],x=p%W,y=(p/W)|0;
+      for(let dy=-1;dy<=1;dy++){ const ny=y+dy; if(ny<0||ny>=H)continue;
+        for(let dx=-1;dx<=1;dx++){ const nx=x+dx; if(nx<0||nx>=W)continue;
+          const q=ny*W+nx; if(mask[q]&&!lab[q]){ lab[q]=n; st[sp++]=q; } } } } }
+  return {labels:lab,n}; }
+function measure(lab,n,W,H,gray,bnd){
+  const x0=bnd?bnd.x0:0,y0=bnd?bnd.y0:0,x1=bnd?bnd.x1:W-1,y1=bnd?bnd.y1:H-1;
+  const A=new Float64Array(n+1),P=new Float64Array(n+1),sx=new Float64Array(n+1),
+        sy=new Float64Array(n+1),sg=new Float64Array(n+1),edge=new Uint8Array(n+1),
+        bx0=new Int32Array(n+1).fill(1e9),by0=new Int32Array(n+1).fill(1e9),
+        bx1=new Int32Array(n+1).fill(-1),by1=new Int32Array(n+1).fill(-1);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const i=y*W+x,L=lab[i]; if(!L)continue;
+    A[L]++; sx[L]+=x; sy[L]+=y; sg[L]+=gray?gray[i]:0;
+    if(x<bx0[L])bx0[L]=x; if(x>bx1[L])bx1[L]=x;
+    if(y<by0[L])by0[L]=y; if(y>by1[L])by1[L]=y;
+    if(x<=x0||y<=y0||x>=x1||y>=y1) edge[L]=1;
+    let b=0;
+    if(x===0||lab[i-1]!==L)b++; if(x===W-1||lab[i+1]!==L)b++;
+    if(y===0||lab[i-W]!==L)b++; if(y===H-1||lab[i+W]!==L)b++;
+    P[L]+=b; }
+  const out=[];
+  for(let L=1;L<=n;L++){ if(!A[L])continue;
+    const per=P[L]*0.785;
+    out.push({ id:L, area:A[L], circ:per>0?clamp(4*Math.PI*A[L]/(per*per),0,1):0,
+      edge:!!edge[L], cx:sx[L]/A[L], cy:sy[L]/A[L], gray:sg[L]/A[L],
+      bx0:bx0[L],by0:by0[L],bx1:bx1[L],by1:by1[L] }); }
+  return out; }
+/* Grow a grain the detector missed, from a click.
+   A plain flood fill leaks into touching neighbours, so the window is segmented
+   with the same watershed used on the whole image and only the component holding
+   the click is kept. */
+function growGrain(px,py,W,H,src,R,capA,splitS){
+  px|=0; py|=0; if(px<0||py<0||px>=W||py>=H) return null;
+  const x0=Math.max(0,px-R),x1=Math.min(W-1,px+R),
+        y0=Math.max(0,py-R),y1=Math.min(H-1,py+R);
+  const ww=x1-x0+1, hh=y1-y0+1;
+  const win=new Uint8ClampedArray(ww*hh), h=new Array(256).fill(0);
+  for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
+    const v=src[y*W+x]; win[(y-y0)*ww+(x-x0)]=v; h[v]++; }
+  let thr=otsuH(h,ww*hh);
+  const ci=(py-y0)*ww+(px-x0);
+  if(win[ci]>thr) thr=win[ci];
+  let m=new Uint8Array(ww*hh);
+  for(let i=0;i<ww*hh;i++) m[i]=win[i]<=thr?1:0;
+  m=fillHoles(m,ww,hh);
+  if(!m[ci]) return null;
+  const r=splitClumps(m,ww,hh,splitS==null?2:splitS);
+  const L=r.labels[ci]; if(!L) return null;
+  const pix=[]; let ax=0,ay=0,per=0,mnx=1e9,mny=1e9,mxx=-1,mxy=-1;
+  for(let y=0;y<hh;y++) for(let x=0;x<ww;x++){
+    const i=y*ww+x; if(r.labels[i]!==L) continue;
+    const gx=x+x0, gy=y+y0;
+    pix.push(gy*W+gx); ax+=gx; ay+=gy;
+    if(gx<mnx)mnx=gx; if(gx>mxx)mxx=gx; if(gy<mny)mny=gy; if(gy>mxy)mxy=gy;
+    let b=0;
+    if(x===0||r.labels[i-1]!==L)b++; if(x===ww-1||r.labels[i+1]!==L)b++;
+    if(y===0||r.labels[i-ww]!==L)b++; if(y===hh-1||r.labels[i+ww]!==L)b++;
+    per+=b; }
+  const area=pix.length;
+  if(area<4||area>capA) return null;        // too small, or still merged
+  per*=0.785;
+  return { id:0, area, circ:per>0?clamp(4*Math.PI*area/(per*per),0,1):0, edge:false,
+    cx:ax/area, cy:ay/area, gray:0, manual:true, pix,
+    bx0:mnx,by0:mny,bx1:mxx,by1:mxy }; }
+function carve(m,W,H,a,b,t){
+  const dx=b[0]-a[0],dy=b[1]-a[1],n=Math.max(2,Math.ceil(Math.hypot(dx,dy)));
+  for(let s=0;s<=n;s++){ const cx=a[0]+dx*s/n, cy=a[1]+dy*s/n;
+    for(let y=Math.floor(cy-t);y<=cy+t;y++) for(let x=Math.floor(cx-t);x<=cx+t;x++){
+      if(x<0||y<0||x>=W||y>=H)continue;
+      if((x-cx)*(x-cx)+(y-cy)*(y-cy)<=t*t) m[y*W+x]=0; } } }
+
+/* ═══════════════ core pipeline ═══════════════ */
+function analyze(gray,W,H,P,A,corrIn){
+  const corr = corrIn || (P.bgOn ? flatten(gray,W,H,P.bgR) : gray);
+  let m=new Uint8Array(W*H);
+  for(let i=0;i<W*H;i++) m[i]=corr[i]<=P.thr?1:0;
+  if(P.des) m=majority(m,W,H);
+  if(P.fill) m=fillHoles(m,W,H);
+  if(A.roi){ const R=A.roi;
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++)
+      if(x<R.x||y<R.y||x>=R.x+R.w||y>=R.y+R.h) m[y*W+x]=0; }
+  for(const g of A.ign){ const gx0=Math.max(0,g.x|0),gy0=Math.max(0,g.y|0),
+    gx1=Math.min(W,(g.x+g.w)|0),gy1=Math.min(H,(g.y+g.h)|0);
+    for(let y=gy0;y<gy1;y++) for(let x=gx0;x<gx1;x++) m[y*W+x]=0; }
+  for(const c of A.cuts) carve(m,W,H,c.a,c.b,2);
+  const bnd = A.roi ? {x0:A.roi.x,y0:A.roi.y,x1:A.roi.x+A.roi.w-1,y1:A.roi.y+A.roi.h-1}
+                    : {x0:0,y0:0,x1:W-1,y1:H-1};
+  const r = P.split ? splitClumps(m,W,H,P.splitS) : ccl(m,W,H);
+  const all0 = measure(r.labels,r.n,W,H,gray,bnd);
+  const k = P.perUnit ? P.perUnit*P.perUnit : 1;
+  let kept = all0.filter(o=>{ const a=o.area/k;
+    if(a<P.minA) return false;
+    if(isFinite(P.maxA)&&P.maxA>0&&a>P.maxA) return false;
+    if(o.circ<P.c0||o.circ>P.c1) return false;
+    if(P.edge&&o.edge) return false;
+    return true; });
+  /* window = 2.5x the median grain radius with sharp local splitting: calibrated
+     on real fields, this gave the lowest area error (median 0.0%) when re-growing
+     grains of known area */
+  const med = kept.length ? kept.map(o=>o.area).sort((a,b)=>a-b)[kept.length>>1] : 200;
+  const R2 = Math.max(10,Math.round(2.5*Math.sqrt(med/Math.PI)));
+  for(const p of A.adds){ const g=growGrain(p[0],p[1],W,H,corr,R2,med*3,1);
+    if(g) kept.push(g); }
+  const gone=new Set();
+  for(const p of A.excl){ const x=p[0]|0,y=p[1]|0;
+    if(x<0||y<0||x>=W||y>=H)continue;
+    const L=r.labels[y*W+x]; if(L>0) gone.add(L); }
+  kept.sort((a,b)=> a.cy-b.cy || a.cx-b.cx);
+  kept.forEach((o,i)=>{ o.no=i+1; o.out = o.id>0 && gone.has(o.id); });
+  const objects=kept.filter(o=>!o.out);
+  return { corr, mask:m, labels:r.labels, all:kept, objects,
+           nExcl:kept.length-objects.length }; }
+
+/* ═══════════════ analyze tab ═══════════════ */
+const CUR = () => S.cur<0 ? null : S.imgs[S.cur];
+const px2u = a => S.scale.perUnit ? a/(S.scale.perUnit**2) : a;
+const len2u = p => S.scale.perUnit ? p/S.scale.perUnit : p;
+const areaUnit = () => S.scale.perUnit ? S.scale.unit+"²" : "px²";
+const lenUnit = () => S.scale.perUnit ? S.scale.unit : "px";
+
+function paramsOf(im){ return {...im.P, perUnit:S.scale.perUnit}; }
+let corrCache={key:null,data:null};
+function compute(i,useCache){
+  const im=S.imgs[i], P=paramsOf(im);
+  let corr=null;
+  if(useCache){ const ck=i+"|"+P.bgOn+"|"+P.bgR;
+    if(corrCache.key!==ck) corrCache={key:ck,data:P.bgOn?flatten(im.gray,im.W,im.H,P.bgR):im.gray};
+    corr=corrCache.data; }
+  im.res=analyze(im.gray,im.W,im.H,P,im.ann,corr);
+  return im.res; }
+
+let runT;
+function schedule(){ clearTimeout(runT); $("#busy").textContent="computing…";
+  runT=setTimeout(run,140); }
+function run(){
+  if(S.cur<0){ $("#busy").textContent=""; return; }
+  compute(S.cur,true);
+  if(S.sel!=null && !CUR().res.all.some(o=>o.no===S.sel)) S.sel=null;
+  buildSelMask(); paint(); readout(); renderGrains(); renderQueue();
+  $("#busy").textContent=""; }
+
+function buildSelMask(){
+  S.selMask=null; const im=CUR(); if(!im||!im.res||S.sel==null) return;
+  const o=im.res.all.find(q=>q.no===S.sel); if(!o) return;
+  const w=o.bx1-o.bx0+1, h=o.by1-o.by0+1;
+  if(w<1||h<1||w>4000||h>4000) return;
+  const cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+  const cx=cv.getContext("2d"), id=cx.createImageData(w,h), d=id.data;
+  const put=(x,y)=>{ const j=((y-o.by0)*w+(x-o.bx0))*4;
+    d[j]=255; d[j+1]=64; d[j+2]=88; d[j+3]=155; };
+  if(o.manual&&o.pix){ for(const p of o.pix) put(p%im.W,(p/im.W)|0); }
+  else for(let y=o.by0;y<=o.by1;y++) for(let x=o.bx0;x<=o.bx1;x++)
+    if(im.res.labels[y*im.W+x]===o.id) put(x,y);
+  cx.putImageData(id,0,0); S.selMask={cv,x:o.bx0,y:o.by0}; }
+
+function paint(){
+  const im=CUR(); if(!im||!im.res) return;
+  const W=im.W,H=im.H,R=im.res;
+  $("#baseA").getContext("2d").putImageData(im.data,0,0);
+  const bc=$("#baseB").getContext("2d"), out=bc.createImageData(W,H), d=out.data;
+  const keep=new Set(R.objects.filter(o=>!o.manual).map(o=>o.id));
+  for(let i=0;i<W*H;i++){ const g=R.corr[i], j=i*4, on=keep.has(R.labels[i]);
+    if(S.view==="binary"){ const v=on?255:0; d[j]=d[j+1]=d[j+2]=v; }
+    else if(S.view==="outline"){ d[j]=d[j+1]=d[j+2]=g; }
+    else if(on){ d[j]=255; d[j+1]=176; d[j+2]=32; }
+    else { d[j]=d[j+1]=d[j+2]=g; }
+    d[j+3]=255; }
+  if(S.view==="outline"){
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const i=y*W+x,L=R.labels[i];
+      if(!L||!keep.has(L)) continue;
+      if((x===0||R.labels[i-1]!==L)||(x===W-1||R.labels[i+1]!==L)||
+         (y===0||R.labels[i-W]!==L)||(y===H-1||R.labels[i+W]!==L)){
+        const j=i*4; d[j]=255;d[j+1]=176;d[j+2]=32; } } }
+  bc.putImageData(out,0,0);
+  drawOverlay($("#ovA")); drawOverlay($("#ovB")); }
+
+function drawOverlay(cv){
+  const im=CUR(); const c=cv.getContext("2d");
+  c.clearRect(0,0,cv.width,cv.height); if(!im) return;
+  const A=im.ann, R=im.res, z=Math.max(.15,S.zoom), lw=1.6/z, r=5/z;
+  c.lineWidth=lw; c.font=`${11/z}px ui-monospace,monospace`;
+  if(A.roi){ c.save(); c.fillStyle="rgba(0,0,0,.45)";
+    c.fillRect(0,0,im.W,A.roi.y); c.fillRect(0,A.roi.y+A.roi.h,im.W,im.H);
+    c.fillRect(0,A.roi.y,A.roi.x,A.roi.h);
+    c.fillRect(A.roi.x+A.roi.w,A.roi.y,im.W,A.roi.h);
+    c.strokeStyle="#5FE08A"; c.setLineDash([6/z,4/z]);
+    c.strokeRect(A.roi.x,A.roi.y,A.roi.w,A.roi.h); c.restore(); }
+  for(const g of A.ign){ c.fillStyle="rgba(255,92,122,.20)"; c.strokeStyle="#FF5C7A";
+    c.fillRect(g.x,g.y,g.w,g.h); c.strokeRect(g.x,g.y,g.w,g.h); }
+  if(R){
+    if(S.showIds && S.zoom>0.28){ c.textAlign="center"; c.textBaseline="middle";
+      for(const o of R.all){ c.fillStyle=o.out?"rgba(255,92,122,.9)":"rgba(255,255,255,.92)";
+        c.fillText(o.no,o.cx,o.cy); }
+      c.textAlign="start"; c.textBaseline="alphabetic"; }
+    for(const o of R.all){
+      if(o.out){ c.strokeStyle="#FF5C7A"; const q=Math.sqrt(o.area/Math.PI);
+        c.beginPath(); c.moveTo(o.cx-q,o.cy-q); c.lineTo(o.cx+q,o.cy+q);
+        c.moveTo(o.cx+q,o.cy-q); c.lineTo(o.cx-q,o.cy+q); c.stroke(); }
+      else if(o.manual){ c.strokeStyle="#5FE08A";
+        c.beginPath(); c.arc(o.cx,o.cy,Math.sqrt(o.area/Math.PI)+2/z,0,7); c.stroke(); } } }
+  if(S.selMask) c.drawImage(S.selMask.cv,S.selMask.x,S.selMask.y);
+  c.strokeStyle="#FF5C7A"; c.lineWidth=2.2/z;
+  for(const t of A.cuts){ c.beginPath(); c.moveTo(t.a[0],t.a[1]); c.lineTo(t.b[0],t.b[1]); c.stroke(); }
+  c.lineWidth=lw;
+  if(S.scale.p1&&S.scale.p2&&S.cur===S.scale.img){
+    c.strokeStyle="#4CC9F0"; c.beginPath();
+    c.moveTo(S.scale.p1[0],S.scale.p1[1]); c.lineTo(S.scale.p2[0],S.scale.p2[1]); c.stroke(); }
+  c.fillStyle="rgba(185,139,255,.25)"; c.strokeStyle="#B98BFF";
+  for(const g of A.germ){ c.beginPath(); c.arc(g[0],g[1],r,0,7); c.fill(); c.stroke(); }
+  A.lens.forEach((L,i)=>{ const on=S.selMeas&&S.selMeas.k==="len"&&S.selMeas.i===i;
+    c.strokeStyle=on?"#FFFFFF":"#FFB020"; c.lineWidth=(on?3:1.6)/z;
+    c.beginPath(); L.pts.forEach((p,j)=> j?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1])); c.stroke(); });
+  A.wids.forEach((w,i)=>{ const on=S.selMeas&&S.selMeas.k==="wid"&&S.selMeas.i===i;
+    c.strokeStyle=on?"#FFFFFF":"#4CC9F0"; c.lineWidth=(on?3:1.6)/z;
+    c.beginPath(); c.moveTo(w.pts[0][0],w.pts[0][1]); c.lineTo(w.pts[1][0],w.pts[1][1]); c.stroke(); });
+  c.lineWidth=lw;
+  if(S.draft&&S.draft.pts.length){ const k=S.draft.kind;
+    if(k==="crop"||k==="ign"){ const p=S.draft.pts[0], q=S.draft.hover||p;
+      c.strokeStyle=k==="crop"?"#5FE08A":"#FF5C7A"; c.setLineDash([5/z,4/z]);
+      c.strokeRect(Math.min(p[0],q[0]),Math.min(p[1],q[1]),
+        Math.abs(q[0]-p[0]),Math.abs(q[1]-p[1])); c.setLineDash([]); }
+    else { c.strokeStyle=k==="scale"?"#4CC9F0":k==="len"?"#FFB020":
+             k==="split"?"#FF5C7A":"#4CC9F0";
+      c.setLineDash([4/z,3/z]); c.beginPath();
+      S.draft.pts.forEach((p,i)=> i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));
+      if(S.draft.hover) c.lineTo(S.draft.hover[0],S.draft.hover[1]);
+      c.stroke(); c.setLineDash([]); } } }
+
+function readout(){
+  const im=CUR(), R=im&&im.res;
+  const n=R?R.objects.length:0, g=im?im.ann.germ.length:0;
+  $("#oCount").textContent=R?n:"–";
+  $("#oGerm").textContent=g;
+  $("#oRate").textContent=n?fmt(100*g/n,1)+" %":"–";
+  const areas=R?R.objects.map(o=>px2u(o.area)):[];
+  $("#oArea").textContent=areas.length?fmt(avg(areas),1):"–";
+  $("#oExcl").textContent=R?R.nExcl:0;
+  const L=im?im.ann.lens.map(o=>o.val):[], Wd=im?im.ann.wids.map(o=>o.val):[];
+  $("#oLen").textContent=L.length?fmt(avg(L),1):"–";
+  $("#oWid").textContent=Wd.length?fmt(avg(Wd),2):"–";
+  $("#areaUnit").textContent="units: "+areaUnit();
+  $("#hudRec").textContent=S.records.length;
+  const s=(R&&S.sel!=null)?R.all.find(o=>o.no===S.sel):null;
+  $("#selInfo").textContent = s
+    ? `#${s.no} · ${fmt(px2u(s.area),1)} ${areaUnit()} · circ ${fmt(s.circ,2)}`
+      +(s.out?" · removed":s.manual?" · added":"")
+    : "none";
+  renderMeas(); renderRegions(); }
+
+function renderMeas(){
+  const im=CUR();
+  const mk=(arr,el,dec,kind)=>{ const box=$(el);
+    if(!arr||!arr.length){ box.innerHTML='<div class="empty">None yet.</div>'; return; }
+    box.innerHTML=arr.map((m,i)=>
+      `<div class="mrow ${S.selMeas&&S.selMeas.k===kind&&S.selMeas.i===i?"sel":""}"
+        data-kind="${kind}" data-i="${i}"><span class="i">${i+1}</span>
+       <span class="v">${fmt(m.val,dec)} ${lenUnit()}</span>
+       <button data-del="${kind}" data-i="${i}">×</button></div>`).join(""); };
+  mk(im&&im.ann.lens,"#listLen",1,"len"); mk(im&&im.ann.wids,"#listWid",2,"wid");
+  $("#nLen").textContent=im?im.ann.lens.length:0;
+  $("#nWid").textContent=im?im.ann.wids.length:0; }
+function renderRegions(){
+  const im=CUR(), box=$("#rlist"); let h="";
+  if(im){ const A=im.ann;
+    if(A.roi) h+=`<div class="rrow"><span class="sw" style="background:var(--fda)"></span>
+      <span class="v">crop ${A.roi.w|0}×${A.roi.h|0}</span>
+      <button data-r="roi">×</button></div>`;
+    A.ign.forEach((g,i)=>{ h+=`<div class="rrow">
+      <span class="sw" style="background:var(--pi)"></span>
+      <span class="v">ignore ${g.w|0}×${g.h|0}</span>
+      <button data-r="ign" data-i="${i}">×</button></div>`; });
+    if(A.cuts.length) h+=`<div class="rrow"><span class="sw" style="background:var(--pi)"></span>
+      <span class="v">${A.cuts.length} manual cut${A.cuts.length>1?"s":""}</span></div>`; }
+  box.innerHTML=h; }
+$("#rlist").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return;
+  const im=CUR(); if(!im) return;
+  if(b.dataset.r==="roi") im.ann.roi=null; else im.ann.ign.splice(+b.dataset.i,1);
+  run(); });
+
+const GCOLS=[["no","#"],["area","Area"],["circ","Circ."]];
+function renderGrains(){
+  const im=CUR(), box=$("#gtable");
+  if(!im||!im.res||!im.res.all.length){
+    box.innerHTML='<p class="note" style="padding:8px">No grains detected.</p>'; return; }
+  const k=S.sort.k,dir=S.sort.dir;
+  const rows=[...im.res.all].sort((a,b)=>{
+    const va=k==="area"?a.area:k==="circ"?a.circ:a.no;
+    const vb=k==="area"?b.area:k==="circ"?b.circ:b.no; return (va-vb)*dir; });
+  box.innerHTML=`<table><thead><tr>${GCOLS.map(c=>
+    `<th data-k="${c[0]}">${c[1]}${k===c[0]?` <span class="ar">${dir>0?"▲":"▼"}</span>`:""}</th>`
+    ).join("")}</tr></thead><tbody>${rows.map(o=>
+    `<tr data-no="${o.no}" class="${o.no===S.sel?"sel":""} ${o.out?"out":""}">
+      <td class="n">${o.no}</td><td class="n">${fmt(px2u(o.area),1)}</td>
+      <td class="n">${fmt(o.circ,2)}</td></tr>`).join("")}</tbody></table>`; }
+$("#gtable").addEventListener("click",e=>{
+  const th=e.target.closest("th");
+  if(th){ const k=th.dataset.k;
+    S.sort = S.sort.k===k?{k,dir:-S.sort.dir}:{k,dir:k==="no"?1:-1}; renderGrains(); return; }
+  const tr=e.target.closest("tr[data-no]"); if(!tr) return;
+  const no=+tr.dataset.no;
+  if(S.sel===no) toggleExclude(no);
+  else { S.sel=no; buildSelMask(); readout(); renderGrains(); paint(); } });
+function toggleExclude(no){
+  const im=CUR(); if(!im||!im.res) return;
+  const o=im.res.all.find(q=>q.no===no); if(!o||o.id<=0) return;
+  if(o.out) im.ann.excl=im.ann.excl.filter(p=>{
+    const x=p[0]|0,y=p[1]|0; return im.res.labels[y*im.W+x]!==o.id; });
+  else im.ann.excl.push([o.cx,o.cy]);
+  run(); }
+
+/* queue */
+function renderQueue(){
+  const box=$("#queue");
+  $("#qNote").textContent = S.imgs.length
+    ? S.imgs.length+" images · "+S.imgs.filter(isSaved).length+" saved"
+    : "No images loaded.";
+  box.innerHTML = S.imgs.map((im,i)=>{
+    const R=im.res, e=im.ann.adds.length+im.ann.excl.length+im.ann.cuts.length
+      +(im.ann.roi?1:0)+im.ann.ign.length;
+    const g=im.ann.germ.length, t=im.ann.lens.length+im.ann.wids.length;
+    return `<div class="qi ${i===S.cur?"on":""}" data-i="${i}">
+      <div class="top"><input value="${(im.sample||"").replace(/"/g,"&quot;")}" data-s="${i}">
+        <span class="n">${R?R.objects.length:"—"}</span></div>
+      <div class="sub">${g?`<span class="g">${g} germ</span>`:""}
+        ${t?`<span>${t} tubes</span>`:""}
+        ${e?`<span class="e">${e} edits</span>`:""}
+        ${isSaved(im)?'<span class="s">saved</span>':""}</div></div>`; }).join(""); }
+$("#queue").addEventListener("input",e=>{
+  if(e.target.dataset.s===undefined) return;
+  S.imgs[+e.target.dataset.s].sample=e.target.value; });
+$("#queue").addEventListener("click",e=>{
+  if(e.target.tagName==="INPUT") return;
+  const q=e.target.closest(".qi"); if(q) select(+q.dataset.i); });
+
+function loadFiles(list){
+  const files=[...list].filter(f=>f.type.startsWith("image/"));
+  if(!files.length) return toast("No image files found");
+  let pending=files.length;
+  files.forEach(f=>{ const rd=new FileReader();
+    rd.onload=()=>{ const el=new Image();
+      el.onload=()=>{ const cv=document.createElement("canvas");
+        cv.width=el.width; cv.height=el.height;
+        const cx=cv.getContext("2d"); cx.drawImage(el,0,0);
+        const data=cx.getImageData(0,0,el.width,el.height);
+        const gray=toGray(data.data,el.width,el.height);
+        const P=DEF();
+        P.thr=otsu(flatten(gray,el.width,el.height,P.bgR));   // auto per image
+        const rec={ name:f.name, sample:f.name.replace(/\.[^.]+$/,""),
+          W:el.width, H:el.height, data, gray, P, ann:ANN(), res:null, recId:null };
+        adopt(rec,S.pending&&S.pending[f.name]);      // restore saved work
+        S.imgs.push(rec);
+        if(--pending===0){ renderQueue(); if(S.cur<0) select(0); else run(); } };
+      el.onerror=()=>{ if(--pending===0) renderQueue();
+        toast("Could not read "+f.name+" — try PNG or JPG"); };
+      el.src=rd.result; };
+    rd.readAsDataURL(f); }); }
+
+function select(i){
+  S.cur=i; const im=S.imgs[i]; S.sel=null; S.selMeas=null; S.draft=null;
+  for(const id of ["#baseA","#ovA","#baseB","#ovB"]){ const c=$(id); c.width=im.W; c.height=im.H; }
+  $("#blankA").style.display="none";
+  $("#lblA").textContent=im.name; $("#lblB").textContent=im.W+" × "+im.H+" px";
+  syncControls(); fit(); run(); }
+
+function syncControls(){
+  const im=CUR(); if(!im) return; const P=im.P;
+  $("#pBg").checked=P.bgOn; $("#pBgR").value=P.bgR; $("#vBgR").textContent=P.bgR+" px";
+  $("#pThr").value=P.thr; $("#vThr").textContent=P.thr;
+  $("#pDes").checked=P.des; $("#pFill").checked=P.fill;
+  $("#pSplit").checked=P.split; $("#pSplitS").value=P.splitS;
+  $("#vSplit").textContent=P.splitS;
+  $("#pMin").value=P.minA; $("#pMax").value=isFinite(P.maxA)?P.maxA:"";
+  $("#pC0").value=P.c0; $("#pC1").value=P.c1; $("#pEdge").checked=P.edge; }
+function readControls(){
+  const im=CUR(); if(!im) return; const P=im.P;
+  P.bgOn=$("#pBg").checked; P.bgR=+$("#pBgR").value; P.thr=+$("#pThr").value;
+  P.des=$("#pDes").checked; P.fill=$("#pFill").checked;
+  P.split=$("#pSplit").checked; P.splitS=+$("#pSplitS").value;
+  P.minA=+$("#pMin").value||0; P.maxA=parseFloat($("#pMax").value);
+  P.c0=+$("#pC0").value; P.c1=+$("#pC1").value; P.edge=$("#pEdge").checked;
+  $("#vThr").textContent=P.thr; $("#vBgR").textContent=P.bgR+" px";
+  $("#vSplit").textContent=P.splitS; }
+
+["#pBg","#pBgR","#pThr","#pDes","#pFill","#pSplit","#pSplitS",
+ "#pMin","#pMax","#pC0","#pC1","#pEdge"].forEach(id=>
+  $(id).addEventListener("input",()=>{ readControls(); schedule(); }));
+$("#otsu").onclick=()=>{ const im=CUR(); if(!im) return;
+  const c=im.P.bgOn?flatten(im.gray,im.W,im.H,im.P.bgR):im.gray;
+  im.P.thr=otsu(c); syncControls(); run(); toast("Otsu → "+im.P.thr); };
+$("#otsuAll").onclick=()=>{ if(!S.imgs.length) return;
+  for(const im of S.imgs){ const c=im.P.bgOn?flatten(im.gray,im.W,im.H,im.P.bgR):im.gray;
+    im.P.thr=otsu(c); im.res=null; }
+  syncControls(); run(); toast("Auto threshold applied per image"); };
+$("#applyAll").onclick=()=>{ const im=CUR(); if(!im) return;
+  for(const o of S.imgs) if(o!==im){ o.P={...im.P}; o.res=null; }
+  toast("Settings copied to "+(S.imgs.length-1)+" images"); renderQueue(); };
+$("#viewMode").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return;
+  S.view=b.dataset.v; $$("#viewMode button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  paint(); });
+$("#showIds").onchange=e=>{ S.showIds=e.target.checked; paint(); };
+$("#clrExcl").onclick=()=>{ const im=CUR(); if(im){ im.ann.excl=[]; run(); } };
+$("#clrGerm").onclick=()=>{ const im=CUR(); if(im){ im.ann.germ=[]; readout(); paint(); renderQueue(); } };
+$("#clrMeas").onclick=()=>{ const im=CUR(); if(im){ im.ann.lens=[]; im.ann.wids=[];
+  S.selMeas=null; readout(); paint(); renderQueue(); } };
+$("#clrFix").onclick=()=>{ const im=CUR(); if(!im) return;
+  im.ann.roi=null; im.ann.ign=[]; im.ann.cuts=[]; im.ann.excl=[]; im.ann.adds=[];
+  run(); toast("Corrections cleared for this image"); };
+$("#clrQueue").onclick=()=>{ if(!S.imgs.length) return;
+  if(confirm("Clear the queue? Unsaved work will be lost.")){
+    S.imgs=[]; S.cur=-1; $("#blankA").style.display=""; renderQueue(); readout();
+    $("#gtable").innerHTML=""; } };
+
+$("#drop").onclick=()=>$("#file").click();
+$("#file").onchange=e=>loadFiles(e.target.files);
+["dragenter","dragover"].forEach(ev=>$("#drop").addEventListener(ev,e=>{
+  e.preventDefault(); $("#drop").classList.add("over"); }));
+["dragleave","drop"].forEach(ev=>$("#drop").addEventListener(ev,e=>{
+  e.preventDefault(); $("#drop").classList.remove("over"); }));
+$("#drop").addEventListener("drop",e=>loadFiles(e.dataTransfer.files));
+
+/* zoom */
+function applyZoom(){ const im=CUR(); if(!im) return;
+  const t=`scale(${S.zoom})`;
+  $("#stackA").style.transform=t; $("#stackB").style.transform=t;
+  $("#stackA").style.width=$("#stackB").style.width=(im.W*S.zoom)+"px";
+  $("#stackA").style.height=$("#stackB").style.height=(im.H*S.zoom)+"px";
+  $("#zoomOut").textContent=Math.round(S.zoom*100)+"%"; paint(); }
+function fit(){ const im=CUR(); if(!im) return;
+  const box=$("#scrollA").getBoundingClientRect();
+  S.zoom=Math.min((box.width-16)/im.W,(box.height-16)/im.H,1)||1; applyZoom(); }
+$("#zoomSeg").addEventListener("click",e=>{ const b=e.target.closest("button");
+  if(!b||S.cur<0) return; const z=b.dataset.z;
+  if(z==="in") S.zoom=clamp(S.zoom*1.35,.05,16);
+  else if(z==="out") S.zoom=clamp(S.zoom/1.35,.05,16);
+  else if(z==="fit") return fit(); else S.zoom=1;
+  applyZoom(); });
+["#scrollA","#scrollB"].forEach(id=>{ const el=$(id);
+  el.addEventListener("wheel",e=>{ if(!e.ctrlKey&&!e.metaKey) return; e.preventDefault();
+    S.zoom=clamp(S.zoom*(e.deltaY<0?1.15:1/1.15),.05,16); applyZoom(); },{passive:false});
+  el.addEventListener("scroll",()=>{ const o=id==="#scrollA"?$("#scrollB"):$("#scrollA");
+    o.scrollTop=el.scrollTop; o.scrollLeft=el.scrollLeft; }); });
+
+/* tools */
+const TOOLNAME={none:"Pan / off",crop:"Crop region",ign:"Ignore region",sel:"Select grain",
+  add:"Add grain",split:"Split grain",germ:"Mark germinated",len:"Tube length",
+  wid:"Tube width",scale:"Draw scale"};
+function setTool(t){ S.tool=t;
+  $$("#tab-analyze .tool").forEach(b=>b.setAttribute("aria-pressed",b.dataset.tool===t));
+  $("#toolHint").textContent=TOOLNAME[t]||t; }
+$$("#tab-analyze .tool, #tNone").forEach(b=>b.onclick=()=>{
+  const t=b.dataset.tool;
+  if((t==="len"||t==="wid")&&!S.scale.perUnit) return toast("Set the scale first");
+  S.draft=null; setTool(t); paint(); });
+
+function imgXY(e,st){ const im=CUR(); const r=st.getBoundingClientRect();
+  return [clamp((e.clientX-r.left)/S.zoom,0,im.W), clamp((e.clientY-r.top)/S.zoom,0,im.H)]; }
+const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+
+["#stackA","#stackB"].forEach(id=>{ const st=$(id);
+  st.addEventListener("mousemove",e=>{ if(S.cur<0) return;
+    const p=imgXY(e,st); $("#hudXY").textContent=Math.round(p[0])+", "+Math.round(p[1]);
+    if(S.draft){ S.draft.hover=p; paint(); } });
+  st.addEventListener("mousedown",e=>{
+    if(S.cur<0||e.button!==0) return;
+    const p=imgXY(e,st), im=CUR(), T=S.draft&&S.draft.kind==="scale"?"scale":S.tool;
+    if(T==="scale"){ S.draft.pts.push(p);
+      if(S.draft.pts.length===2) finishScale(); paint(); return; }
+    if(T==="germ"){ im.ann.germ.push(p); readout(); paint(); renderQueue(); return; }
+    if(T==="add"){ const before=im.res?im.res.all.length:0;
+      im.ann.adds.push(p); run();
+      if(im.res.all.length<=before){ im.ann.adds.pop(); run();
+        toast("Nothing grain-like there — click the centre"); } return; }
+    if(T==="sel"){ const L=im.res?im.res.labels[(p[1]|0)*im.W+(p[0]|0)]:0;
+      let o=L?im.res.all.find(q=>q.id===L):null;
+      if(!o&&im.res) o=im.res.all.find(q=>q.manual&&dist([q.cx,q.cy],p)<Math.sqrt(q.area/Math.PI)+3);
+      S.sel=o?o.no:null; buildSelMask(); readout(); renderGrains(); paint(); return; }
+    if(T==="crop"||T==="ign"||T==="wid"||T==="split"){
+      S.draft={kind:T,pts:[p],hover:p};
+      const mv=ev=>{ S.draft.hover=imgXY(ev,st); paint(); };
+      const up=ev=>{ document.removeEventListener("mousemove",mv);
+        document.removeEventListener("mouseup",up);
+        const q=imgXY(ev,st); S.draft=null;
+        if(T==="wid"){ const d=dist(p,q); if(d>1.5) commit("wid",[p,q],len2u(d));
+          paint(); return; }
+        if(T==="split"){ if(dist(p,q)>3){ im.ann.cuts.push({a:p,b:q}); run(); }
+          else paint(); return; }
+        const x=Math.min(p[0],q[0]),y=Math.min(p[1],q[1]),
+              w=Math.abs(q[0]-p[0]),h=Math.abs(q[1]-p[1]);
+        if(w<8||h<8){ paint(); return; }
+        if(T==="crop") im.ann.roi={x,y,w,h}; else im.ann.ign.push({x,y,w,h});
+        run(); };
+      document.addEventListener("mousemove",mv); document.addEventListener("mouseup",up);
+      return; }
+    if(T==="len"){ if(!S.draft) S.draft={kind:"len",pts:[p],hover:p};
+      else S.draft.pts.push(p); paint(); return; } });
+  st.addEventListener("dblclick",()=>{ if(S.draft&&S.draft.kind==="len") finishLen(); });
+  st.addEventListener("contextmenu",e=>{
+    if(S.cur<0) return; e.preventDefault();
+    const p=imgXY(e,st), im=CUR(), lim=10/S.zoom;
+    let bi=-1,bd=lim;
+    im.ann.germ.forEach((g,i)=>{ const d=dist(g,p); if(d<bd){bd=d;bi=i;} });
+    if(bi>=0){ im.ann.germ.splice(bi,1); readout(); paint(); renderQueue(); return; }
+    for(const [arr,k] of [[im.ann.lens,"len"],[im.ann.wids,"wid"]])
+      for(let i=0;i<arr.length;i++)
+        if(arr[i].pts.some(q=>dist(q,p)<lim)){ arr.splice(i,1); S.selMeas=null;
+          readout(); paint(); renderQueue(); return; }
+    for(let i=0;i<im.ann.cuts.length;i++){ const t=im.ann.cuts[i];
+      if(dist(t.a,p)<lim||dist(t.b,p)<lim){ im.ann.cuts.splice(i,1); run(); return; } }
+    for(let i=0;i<im.ann.adds.length;i++)
+      if(dist(im.ann.adds[i],p)<lim*1.6){ im.ann.adds.splice(i,1); run(); return; }
+    const L=im.res?im.res.labels[(p[1]|0)*im.W+(p[0]|0)]:0;
+    const o=L?im.res.all.find(q=>q.id===L):null;
+    if(o) toggleExclude(o.no); }); });
+
+document.addEventListener("keydown",e=>{ if(e.key!=="Escape") return;
+  if(S.draft&&S.draft.kind==="len"&&S.draft.pts.length>1) finishLen();
+  else { S.draft=null; paint(); } });
+function commit(kind,pts,val){ if(!S.scale.perUnit) return toast("Set the scale first");
+  const im=CUR(); (kind==="len"?im.ann.lens:im.ann.wids).push({pts,val});
+  readout(); paint(); renderQueue(); }
+function finishLen(){ if(!S.draft||S.draft.pts.length<2){ S.draft=null; return; }
+  let d=0; const p=S.draft.pts;
+  for(let i=1;i<p.length;i++) d+=dist(p[i-1],p[i]);
+  const pts=p.slice(); S.draft=null; commit("len",pts,len2u(d)); }
+function finishScale(){ const p=S.draft.pts, d=dist(p[0],p[1]);
+  const known=parseFloat($("#scKnown").value);
+  if(!(d>0)||!(known>0)){ S.draft=null; return toast("Scale needs a positive length"); }
+  S.scale.p1=p[0]; S.scale.p2=p[1]; S.scale.img=S.cur;
+  S.scale.unit=$("#scUnit").value.trim()||"µm";
+  S.scale.perUnit=d/known; S.draft=null; setTool("none");
+  const s=fmt(S.scale.perUnit,3)+" px / "+S.scale.unit;
+  $("#scOut").textContent=s; $("#hudScale").textContent=s;
+  for(const im of S.imgs) im.res=null;
+  toast("Scale set — applies to every image"); run(); }
+$("#scStart").onclick=()=>{ if(S.cur<0) return toast("Load an image first");
+  S.draft={kind:"scale",pts:[],hover:null}; setTool("scale");
+  toast("Click both ends of the scale bar"); };
+$("#scClear").onclick=()=>{ S.scale={perUnit:null,unit:$("#scUnit").value||"µm",
+  p1:null,p2:null}; $("#scOut").textContent="not set"; $("#hudScale").textContent="not set";
+  run(); };
+
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-del]");
+  if(b){ const im=CUR(); if(!im) return;
+    (b.dataset.del==="len"?im.ann.lens:im.ann.wids).splice(+b.dataset.i,1);
+    S.selMeas=null; readout(); paint(); renderQueue(); return; }
+  const row=e.target.closest(".mrow[data-kind]");
+  if(row){ const k=row.dataset.kind,i=+row.dataset.i;
+    S.selMeas=(S.selMeas&&S.selMeas.k===k&&S.selMeas.i===i)?null:{k,i};
+    renderMeas(); paint(); } });
+
+/* save all */
+function doSave(update){
+  const todo = update ? S.imgs.filter(isSaved) : S.imgs.filter(im=>!isSaved(im));
+  if(!todo.length) return toast(update
+    ? "No saved images to update"
+    : (S.imgs.length?"Everything is already saved — use Update saved":"Load images first"));
+  if(!S.scale.perUnit && !confirm(
+      "No scale is set, so areas will be in pixels² instead of "+
+      ($("#scUnit").value||"µm")+"². Save anyway?")) return;
+  const bad=todo.filter(im=>
+    Math.max(im.ann.lens.length,im.ann.wids.length) > im.ann.germ.length);
+  if(bad.length && !confirm(
+      bad.length+" image(s) have more tube measurements than grains marked as germinated:\n\n"+
+      bad.slice(0,6).map(im=>`• ${im.sample}: ${im.ann.germ.length} germinated, `+
+        `${Math.max(im.ann.lens.length,im.ann.wids.length)} tubes`).join("\n")+
+      (bad.length>6?`\n…and ${bad.length-6} more`:"")+
+      "\n\nThat usually means a germinated grain went unmarked. Save anyway?")) return;
+  const group=$("#mGroup").value.trim()||"—";
+  const unit=S.scale.perUnit?S.scale.unit:"px";
+  let n=0;
+  for(const im of todo){
+    if(!im.res) compute(S.imgs.indexOf(im),false);
+    const R=im.res, areas=R.objects.map(o=>px2u(o.area));
+    const L=im.ann.lens.map(o=>o.val), Wd=im.ann.wids.map(o=>o.val);
+    const g=im.ann.germ.length, tot=R.objects.length;
+    const edits=im.ann.adds.length+im.ann.excl.length+im.ann.cuts.length;
+    const rec={ id:im.recId ?? (Date.now()+Math.random()+n),
+      file:im.name, sample:im.sample, group,
+      note: edits? edits+" manual edits":"",
+      total:tot, germinated:g, germinationPct: tot?100*g/tot:null,
+      meanArea: areas.length?avg(areas):null,
+      totalArea: areas.length?areas.reduce((a,b)=>a+b,0):null,
+      areas: areas.map(a=>+a.toFixed(3)),
+      lens:L.map(v=>+v.toFixed(3)), wids:Wd.map(v=>+v.toFixed(3)),
+      meanLen: L.length?avg(L):null, nLen:L.length,
+      meanWid: Wd.length?avg(Wd):null, nWid:Wd.length,
+      removed:R.nExcl, live:null, dead:null, viabilityPct:null,
+      unit, scalePx:S.scale.perUnit,
+      date:new Date().toISOString().slice(0,16).replace("T"," ") };
+    const at=S.records.findIndex(r=>r.id===im.recId);
+    if(update && at>=0) S.records[at]=rec; else S.records.push(rec);
+    im.recId=rec.id; n++; }
+  renderQueue(); renderData(); persist();
+  toast(n+(update?" records updated":" records saved")+" under “"+group+"”"); }
+$("#saveAll").onclick=()=>doSave(false);
+$("#updateAll").onclick=()=>doSave(true);
+
+/* ═══════════════ viability ═══════════════ */
+const VCUR = () => V.cur<0 ? null : V.imgs[V.cur];
+function chanArr(d,W,H,ch,bleed){
+  const a=new Uint8ClampedArray(W*H);
+  for(let i=0,j=0;j<W*H;i+=4,j++){
+    let v = ch==="g" ? d[i+1] : d[i];
+    if(bleed) v -= (ch==="g" ? d[i] : d[i+1])*0.5;
+    a[j]=clamp(v,0,255); }
+  return a; }
+function chanObjects(arr,W,H,thr,minA,ann,key){
+  const m=new Uint8Array(W*H);
+  for(let i=0;i<W*H;i++) m[i]=arr[i]>=thr?1:0;
+  const {labels,n}=ccl(m,W,H);
+  const A=new Float64Array(n+1);
+  for(let i=0;i<W*H;i++) if(labels[i]) A[labels[i]]++;
+  const keep=new Set();
+  for(let L=1;L<=n;L++) if(A[L]>=minA) keep.add(L);
+  for(const p of ann["excl"+key]){ const x=p[0]|0,y=p[1]|0;
+    if(x<0||y<0||x>=W||y>=H) continue;
+    const L=labels[y*W+x]; if(L) keep.delete(L); }
+  const inv=new Uint8ClampedArray(W*H);
+  for(let i=0;i<W*H;i++) inv[i]=255-arr[i];
+  const manual=[];
+  for(const p of ann["add"+key]){
+    const g=growGrain(p[0],p[1],W,H,inv,26,1e9,2);
+    if(g&&g.area>=minA) manual.push(g); }
+  return {labels,keep,manual}; }
+function analyzeViab(im){
+  const {W,H}=im, d=im.data.data, P=im.P;
+  let G=null,R=null;
+  if(P.mode!=="pi") G=chanObjects(chanArr(d,W,H,"g",P.gBleed),W,H,P.gThr,P.gMin,im.ann,"G");
+  if(P.mode!=="fda")R=chanObjects(chanArr(d,W,H,"r",P.rBleed),W,H,P.rThr,P.rMin,im.ann,"R");
+  let live=0,dead=0;
+  if(R) dead=R.keep.size+R.manual.length;
+  if(G){ if(R&&P.dual){ const bad=new Set();
+      for(let i=0;i<W*H;i++){ const g=G.labels[i]; if(!g||!G.keep.has(g)) continue;
+        const r=R.labels[i]; if(r&&R.keep.has(r)) bad.add(g); }
+      live=[...G.keep].filter(l=>!bad.has(l)).length+G.manual.length; }
+    else live=G.keep.size+G.manual.length; }
+  im.res={G,R,live,dead};
+  return im.res; }
+function vPaint(){
+  const im=VCUR(); if(!im||!im.res) return;
+  const {W,H}=im, R=im.res;
+  $("#vBaseA").getContext("2d").putImageData(im.data,0,0);
+  const bc=$("#vBaseB").getContext("2d"), out=bc.createImageData(W,H), o=out.data;
+  const d=im.data.data;
+  for(let i=0,j=0;j<W*H;i+=4,j++){
+    const dim=(d[i]*0.25+d[i+1]*0.25)|0;
+    o[i]=o[i+1]=o[i+2]=dim; o[i+3]=255;
+    const g=R.G&&R.G.labels[j], r=R.R&&R.R.labels[j];
+    if(g&&R.G.keep.has(g)){ o[i]=40;o[i+1]=224;o[i+2]=138; }
+    if(r&&R.R.keep.has(r)){ o[i]=255;o[i+1]=92;o[i+2]=122; } }
+  bc.putImageData(out,0,0);
+  for(const cv of [$("#vOvA"),$("#vOvB")]){
+    const c=cv.getContext("2d"); c.clearRect(0,0,cv.width,cv.height);
+    const z=Math.max(.15,V.zoom); c.lineWidth=2/z;
+    if(R.G) for(const g of R.G.manual){ c.strokeStyle="#5FE08A";
+      c.beginPath(); c.arc(g.cx,g.cy,Math.sqrt(g.area/Math.PI)+2/z,0,7); c.stroke(); }
+    if(R.R) for(const g of R.R.manual){ c.strokeStyle="#FF5C7A";
+      c.beginPath(); c.arc(g.cx,g.cy,Math.sqrt(g.area/Math.PI)+2/z,0,7); c.stroke(); } }
+  const tot=R.live+R.dead, P=im.P;
+  $("#vLive").textContent = P.mode!=="pi" ? R.live : "–";
+  $("#vDead").textContent = P.mode!=="fda"? R.dead : "–";
+  $("#vPct").textContent = (P.mode==="both"&&tot) ? fmt(100*R.live/tot,1)+" %"
+    : P.mode==="fda" ? R.live+" live" : P.mode==="pi" ? R.dead+" dead" : "–";
+  $("#vLblB").textContent = tot? tot+" objects":""; }
+function vRun(){ const im=VCUR(); if(!im) return;
+  analyzeViab(im); vPaint(); vRenderQueue(); }
+let vT; function vSchedule(){ clearTimeout(vT); vT=setTimeout(vRun,140); }
+
+function vSync(){ const im=VCUR(); if(!im) return; const P=im.P;
+  $("#vMode").value=P.mode; $("#gThr").value=P.gThr; $("#vGt").textContent=P.gThr;
+  $("#gMin").value=P.gMin; $("#vGs").textContent=P.gMin+" px²";
+  $("#rThr").value=P.rThr; $("#vRt").textContent=P.rThr;
+  $("#rMin").value=P.rMin; $("#vRs").textContent=P.rMin+" px²";
+  $("#gBleed").checked=P.gBleed; $("#rBleed").checked=P.rBleed; $("#vDual").checked=P.dual;
+  $("#secG").style.display=P.mode==="pi"?"none":"";
+  $("#secR").style.display=P.mode==="fda"?"none":""; }
+function vRead(){ const im=VCUR(); if(!im) return; const P=im.P;
+  P.mode=$("#vMode").value; P.gThr=+$("#gThr").value; P.gMin=+$("#gMin").value;
+  P.rThr=+$("#rThr").value; P.rMin=+$("#rMin").value;
+  P.gBleed=$("#gBleed").checked; P.rBleed=$("#rBleed").checked; P.dual=$("#vDual").checked;
+  $("#vGt").textContent=P.gThr; $("#vRt").textContent=P.rThr;
+  $("#vGs").textContent=P.gMin+" px²"; $("#vRs").textContent=P.rMin+" px²";
+  $("#secG").style.display=P.mode==="pi"?"none":"";
+  $("#secR").style.display=P.mode==="fda"?"none":""; }
+["#vMode","#gThr","#gMin","#rThr","#rMin","#gBleed","#rBleed","#vDual"].forEach(id=>
+  $(id).addEventListener("input",()=>{ vRead(); vSchedule(); }));
+$("#vApplyAll").onclick=()=>{ const im=VCUR(); if(!im) return;
+  for(const o of V.imgs) if(o!==im){ o.P={...im.P}; o.res=null; }
+  toast("Settings copied to "+(V.imgs.length-1)+" images"); vRenderQueue(); };
+
+function vRenderQueue(){
+  $("#vqNote").textContent = V.imgs.length
+    ? V.imgs.length+" images · "+V.imgs.filter(vIsSaved).length+" saved"
+    : "No images loaded.";
+  $("#vqueue").innerHTML = V.imgs.map((im,i)=>{
+    const R=im.res, e=im.ann.addG.length+im.ann.addR.length
+      +im.ann.exclG.length+im.ann.exclR.length;
+    const tot=R?R.live+R.dead:0;
+    return `<div class="qi ${i===V.cur?"on":""}" data-i="${i}">
+      <div class="top"><input value="${(im.sample||"").replace(/"/g,"&quot;")}" data-s="${i}">
+        <span class="n">${R&&tot?fmt(100*R.live/tot,0)+"%":"—"}</span></div>
+      <div class="sub">${R?`<span class="s">${R.live} live</span>
+        <span style="color:var(--pi)">${R.dead} dead</span>`:""}
+        ${e?`<span class="e">${e} edits</span>`:""}
+        ${vIsSaved(im)?'<span class="s">saved</span>':""}</div></div>`; }).join(""); }
+$("#vqueue").addEventListener("input",e=>{ if(e.target.dataset.s===undefined) return;
+  V.imgs[+e.target.dataset.s].sample=e.target.value; });
+$("#vqueue").addEventListener("click",e=>{ if(e.target.tagName==="INPUT") return;
+  const q=e.target.closest(".qi"); if(q) vSelect(+q.dataset.i); });
+
+$("#vdrop").onclick=()=>$("#vfile").click();
+$("#vfile").onchange=e=>vLoad(e.target.files);
+["dragenter","dragover"].forEach(ev=>$("#vdrop").addEventListener(ev,e=>{
+  e.preventDefault(); $("#vdrop").classList.add("over"); }));
+["dragleave","drop"].forEach(ev=>$("#vdrop").addEventListener(ev,e=>{
+  e.preventDefault(); $("#vdrop").classList.remove("over"); }));
+$("#vdrop").addEventListener("drop",e=>vLoad(e.dataTransfer.files));
+function vLoad(list){
+  const files=[...list].filter(f=>f.type.startsWith("image/"));
+  if(!files.length) return toast("No image files found");
+  let pending=files.length;
+  files.forEach(f=>{ const rd=new FileReader();
+    rd.onload=()=>{ const el=new Image();
+      el.onload=()=>{ const cv=document.createElement("canvas");
+        cv.width=el.width; cv.height=el.height;
+        cv.getContext("2d").drawImage(el,0,0);
+        const rec={ name:f.name, sample:f.name.replace(/\.[^.]+$/,""),
+          W:el.width, H:el.height,
+          data:cv.getContext("2d").getImageData(0,0,el.width,el.height),
+          P:VDEF(), ann:{addG:[],addR:[],exclG:[],exclR:[]}, res:null, recId:null };
+        vAdopt(rec,V.pending&&V.pending[f.name]);
+        V.imgs.push(rec);
+        if(--pending===0){ vRenderQueue(); if(V.cur<0) vSelect(0); else vRun(); } };
+      el.onerror=()=>{ if(--pending===0) vRenderQueue(); toast("Could not read "+f.name); };
+      el.src=rd.result; };
+    rd.readAsDataURL(f); }); }
+function vSelect(i){
+  V.cur=i; const im=V.imgs[i];
+  for(const id of ["#vBaseA","#vOvA","#vBaseB","#vOvB"]){
+    const c=$(id); c.width=im.W; c.height=im.H; }
+  $("#vBlank").style.display="none"; $("#vLblA").textContent=im.name;
+  const box=$("#vScrollA").getBoundingClientRect();
+  V.zoom=Math.min((box.width-16)/im.W,(box.height-16)/im.H,1)||1; vApplyZoom();
+  vSync(); vRun(); }
+function vApplyZoom(){ const im=VCUR(); if(!im) return;
+  const t=`scale(${V.zoom})`;
+  $("#vStackA").style.transform=t; $("#vStackB").style.transform=t;
+  $("#vStackA").style.width=$("#vStackB").style.width=(im.W*V.zoom)+"px";
+  $("#vStackA").style.height=$("#vStackB").style.height=(im.H*V.zoom)+"px";
+  $("#vZoomOut").textContent=Math.round(V.zoom*100)+"%"; }
+$("#vZoomSeg").addEventListener("click",e=>{ const b=e.target.closest("button");
+  if(!b||V.cur<0) return; const z=b.dataset.z;
+  if(z==="in") V.zoom=clamp(V.zoom*1.35,.05,16);
+  else if(z==="out") V.zoom=clamp(V.zoom/1.35,.05,16);
+  else if(z==="fit"){ const im=VCUR(); const box=$("#vScrollA").getBoundingClientRect();
+    V.zoom=Math.min((box.width-16)/im.W,(box.height-16)/im.H,1)||1; }
+  else V.zoom=1;
+  vApplyZoom(); vPaint(); });
+$("#vScrollA").addEventListener("scroll",()=>{
+  $("#vScrollB").scrollTop=$("#vScrollA").scrollTop;
+  $("#vScrollB").scrollLeft=$("#vScrollA").scrollLeft; });
+$$(".vtool").forEach(b=>b.onclick=()=>{ V.tool=b.dataset.vtool;
+  $$(".vtool").forEach(x=>x.setAttribute("aria-pressed",x===b)); });
+$("#vClrFix").onclick=()=>{ const im=VCUR(); if(!im) return;
+  im.ann={addG:[],addR:[],exclG:[],exclR:[]}; vRun(); toast("Corrections cleared"); };
+$("#vClrQueue").onclick=()=>{ if(!V.imgs.length) return;
+  if(confirm("Clear the queue? Unsaved work will be lost.")){
+    V.imgs=[]; V.cur=-1; $("#vBlank").style.display=""; vRenderQueue(); } };
+function vXY(e){ const im=VCUR(); const r=$("#vStackA").getBoundingClientRect();
+  const r2=$("#vStackB").getBoundingClientRect();
+  const inB = e.clientX>=r2.left && e.clientX<=r2.right;
+  const rr = inB? r2 : r;
+  return [clamp((e.clientX-rr.left)/V.zoom,0,im.W), clamp((e.clientY-rr.top)/V.zoom,0,im.H)]; }
+["#vStackA","#vStackB"].forEach(id=>{ const st=$(id);
+  st.addEventListener("mousedown",e=>{ if(V.cur<0||e.button!==0) return;
+    const im=VCUR(), p=vXY(e);
+    if(V.tool==="addG"){ im.ann.addG.push(p); vRun(); }
+    else if(V.tool==="addR"){ im.ann.addR.push(p); vRun(); } });
+  st.addEventListener("contextmenu",e=>{ if(V.cur<0) return; e.preventDefault();
+    const im=VCUR(), p=vXY(e), R=im.res, lim=12/V.zoom;
+    for(const k of ["addG","addR"])
+      for(let i=0;i<im.ann[k].length;i++)
+        if(Math.hypot(im.ann[k][i][0]-p[0],im.ann[k][i][1]-p[1])<lim){
+          im.ann[k].splice(i,1); vRun(); return; }
+    const j=(p[1]|0)*im.W+(p[0]|0);
+    if(R.R&&R.R.labels[j]&&R.R.keep.has(R.R.labels[j])){ im.ann.exclR.push(p); vRun(); return; }
+    if(R.G&&R.G.labels[j]&&R.G.keep.has(R.G.labels[j])){ im.ann.exclG.push(p); vRun(); } }); });
+$("#vSaveAll").onclick=()=>{
+  const todo=V.imgs.filter(im=>!vIsSaved(im));
+  if(!todo.length) return toast(V.imgs.length?"Everything is already saved":"Load images first");
+  const group=$("#vGroup").value.trim()||"—";
+  let n=0;
+  for(const im of todo){ if(!im.res) analyzeViab(im);
+    const tot=im.res.live+im.res.dead;
+    const rid=Date.now()+Math.random()+n;
+    S.records.push({ id:rid, file:im.name, sample:im.sample, group,
+      note:"viability", total:null, germinated:null, germinationPct:null,
+      meanArea:null, totalArea:null, areas:[], lens:[], wids:[],
+      meanLen:null, nLen:0, meanWid:null, nWid:0, removed:null,
+      live:im.res.live, dead:im.res.dead, viabilityPct: tot?100*im.res.live/tot:null,
+      unit:"px", date:new Date().toISOString().slice(0,16).replace("T"," ") });
+    im.recId=rid; n++; }
+  vRenderQueue(); renderData(); persist();
+  toast(n+" viability records saved"); };
+
+/* ═══════════════ data ═══════════════ */
+const COLS=[["sample","Sample"],["group","Group"],["file","File"],["total","Total"],
+  ["germinated","Germ."],["germinationPct","Germ. %"],["meanArea","Mean area"],
+  ["totalArea","Total area"],["meanLen","Tube len"],["nLen","n len"],
+  ["meanWid","Tube wid"],["nWid","n wid"],["removed","Removed"],
+  ["live","Live"],["dead","Dead"],["viabilityPct","Viab. %"],["unit","Unit"],["date","Saved"]];
+function renderData(){
+  $("#hudRec").textContent=S.records.length;
+  const gs=[...new Set(S.records.map(r=>r.group).filter(Boolean))];
+  $("#groupList").innerHTML=gs.map(g=>`<option value="${g.replace(/"/g,"&quot;")}">`).join("");
+  renderQueue(); vRenderQueue();
+  const w=$("#dataWrap");
+  if(!S.records.length){ w.innerHTML='<p class="note">Nothing saved yet. Analyse your '+
+    'images, then use <b>Save all to dataset</b>.</p>'; return; }
+  w.innerHTML=`<table><thead><tr>${COLS.map(c=>`<th>${c[1]}</th>`).join("")}<th></th></tr></thead>
+    <tbody>${S.records.map((r,i)=>`<tr>
+      <td><input value="${(r.sample||"").replace(/"/g,"&quot;")}" data-i="${i}" data-k="sample"></td>
+      <td><input value="${(r.group||"").replace(/"/g,"&quot;")}" data-i="${i}" data-k="group"></td>
+      <td style="color:var(--dim)">${r.file||"—"}</td>
+      <td class="n">${r.total??"—"}</td><td class="n">${r.germinated??"—"}</td>
+      <td class="n">${r.germinationPct==null?"—":fmt(r.germinationPct,1)}</td>
+      <td class="n">${r.meanArea==null?"—":fmt(r.meanArea,1)}</td>
+      <td class="n">${r.totalArea==null?"—":fmt(r.totalArea,0)}</td>
+      <td class="n">${r.meanLen==null?"—":fmt(r.meanLen,1)}</td>
+      <td class="n">${r.nLen??"—"}</td>
+      <td class="n">${r.meanWid==null?"—":fmt(r.meanWid,2)}</td>
+      <td class="n">${r.nWid??"—"}</td>
+      <td class="n">${r.removed??"—"}</td>
+      <td class="n">${r.live??"—"}</td><td class="n">${r.dead??"—"}</td>
+      <td class="n">${r.viabilityPct==null?"—":fmt(r.viabilityPct,1)}</td>
+      <td style="color:var(--dim)">${r.unit||""}</td>
+      <td style="color:var(--dim)">${r.date||""}</td>
+      <td><button class="del" data-del2="${i}">×</button></td></tr>`).join("")}</tbody></table>`; }
+$("#dataWrap").addEventListener("input",e=>{ const el=e.target;
+  if(!el.dataset.k) return; S.records[+el.dataset.i][el.dataset.k]=el.value; persist(); });
+$("#dataWrap").addEventListener("click",e=>{ const b=e.target.closest("[data-del2]");
+  if(!b) return; S.records.splice(+b.dataset.del2,1); renderData(); persist(); });
+$("#clrAll").onclick=()=>{ if(!S.records.length) return;
+  if(confirm("Delete all "+S.records.length+" records?\n\n"+
+     "Your image analysis is kept — the images simply become unsaved "+
+     "and can be saved again.")){
+    S.records=[]; renderData(); persist(); } };
+function download(name,text,type){ const b=new Blob([text],{type:type||"text/plain;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=name;
+  a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+function csvCell(v){ if(v==null) return "";
+  const s=String(v); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+$("#expCsv").onclick=()=>{ if(!S.records.length) return toast("Nothing to export");
+  const head=COLS.map(c=>c[1]).concat("Note").join(",");
+  const rows=S.records.map(r=>COLS.map(c=>{ const v=r[c[0]];
+    return csvCell(typeof v==="number"?+v.toFixed(4):v); }).concat(csvCell(r.note)).join(","));
+  download("pollen_data.csv",[head,...rows].join("\n"),"text/csv;charset=utf-8");
+  toast("CSV exported"); };
+$("#expJson").onclick=()=>{ const t=JSON.stringify(sessionObj());
+  download("pollenlab_session.json",t,"application/json");
+  toast("Session saved ("+Math.round(t.length/1024)+" KB)"); };
+$("#impBtn").onclick=()=>$("#impJson").click();
+$("#impJson").onchange=e=>{ const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ const o=JSON.parse(rd.result);
+      if(!Array.isArray(o)&&!Array.isArray(o.records)) throw 0;
+      applySession(o); persist(); }
+    catch(_){ toast("That file isn't a PollenLab session"); } };
+  rd.readAsText(f); e.target.value=""; };
+
+/* ═══════════════ statistics ═══════════════ */
+function betacf(a,b,x){ const FP=1e-30;
+  let qab=a+b,qap=a+1,qam=a-1,c=1,d=1-qab*x/qap;
+  if(Math.abs(d)<FP)d=FP; d=1/d; let h=d;
+  for(let m=1;m<=200;m++){ const m2=2*m;
+    let aa=m*(b-m)*x/((qam+m2)*(a+m2));
+    d=1+aa*d; if(Math.abs(d)<FP)d=FP; c=1+aa/c; if(Math.abs(c)<FP)c=FP; d=1/d; h*=d*c;
+    aa=-(a+m)*(qab+m)*x/((a+m2)*(qap+m2));
+    d=1+aa*d; if(Math.abs(d)<FP)d=FP; c=1+aa/c; if(Math.abs(c)<FP)c=FP; d=1/d;
+    const del=d*c; h*=del; if(Math.abs(del-1)<3e-7) break; }
+  return h; }
+function gammaln(x){ const co=[76.18009172947146,-86.50532032941677,24.01409824083091,
+  -1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5];
+  let y=x,t=x+5.5; t-=(x+0.5)*Math.log(t); let s=1.000000000190015;
+  for(let j=0;j<6;j++) s+=co[j]/++y;
+  return -t+Math.log(2.5066282746310005*s/x); }
+function betai(a,b,x){ if(x<=0) return 0; if(x>=1) return 1;
+  const bt=Math.exp(gammaln(a+b)-gammaln(a)-gammaln(b)+a*Math.log(x)+b*Math.log(1-x));
+  return x<(a+1)/(a+b+2) ? bt*betacf(a,b,x)/a : 1-bt*betacf(b,a,1-x)/b; }
+const pT=(t,df)=>betai(df/2,0.5,df/(df+t*t));
+const pF=(F,d1,d2)=>betai(d2/2,d1/2,d2/(d2+d1*F));
+const sdOf=a=>{ if(a.length<2) return null; const m=avg(a);
+  return Math.sqrt(a.reduce((s,v)=>s+(v-m)*(v-m),0)/(a.length-1)); };
+
+let lastStats=null;
+function runStats(){
+  const metric=$("#sMetric").value, by=$("#sBy").value;
+  const perItem=metric[0]==="*", key=perItem?metric.slice(1):metric;
+  const groups=new Map();
+  for(const r of S.records){ const k=(r[by]||"—")+"";
+    if(perItem){ const arr=r[key]; if(!Array.isArray(arr)||!arr.length) continue;
+      if(!groups.has(k)) groups.set(k,[]);
+      groups.get(k).push(...arr.filter(v=>isFinite(v))); }
+    else { const v=r[key]; if(v==null||!isFinite(v)) continue;
+      if(!groups.has(k)) groups.set(k,[]); groups.get(k).push(+v); } }
+  if(!groups.size){
+    $("#sTable").innerHTML='<p class="note">No records have a value for that measurement.</p>';
+    $("#sTest").innerHTML='<h3>Significance test</h3><p class="note">Nothing to test.</p>';
+    drawChart([]); lastStats=null; return; }
+  const rows=[...groups.entries()].map(([k,v])=>{ const m=avg(v),s=sdOf(v);
+    return {name:k,n:v.length,mean:m,sd:s,sem:s==null?null:s/Math.sqrt(v.length),
+      min:Math.min(...v),max:Math.max(...v),vals:v}; });
+  lastStats={metric,rows,perItem};
+  $("#sTable").innerHTML=`<table><thead><tr><th>${by==="group"?"Group":"Sample"}</th>
+    <th>${perItem?"n (items)":"n"}</th><th>Mean</th><th>SD</th><th>SEM</th>
+    <th>Min</th><th>Max</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${r.name}</td><td class="n">${r.n}</td>
+      <td class="n">${fmt(r.mean,2)}</td><td class="n">${r.sd==null?"—":fmt(r.sd,2)}</td>
+      <td class="n">${r.sem==null?"—":fmt(r.sem,2)}</td>
+      <td class="n">${fmt(r.min,2)}</td><td class="n">${fmt(r.max,2)}</td></tr>`).join("")}
+    </tbody></table>${perItem?'<p class="warn" style="margin-top:10px">These are individual '+
+    'grains or tubes, not independent replicates. Read this as a distribution; for a formal '+
+    'test between treatments use a per-image measurement.</p>':''}`;
+  const usable=rows.filter(r=>r.n>=2);
+  let html='<h3>Significance test</h3>';
+  if(usable.length<2) html+='<p class="note">At least two groups with n ≥ 2 are needed.</p>';
+  else if(usable.length===2){ const [A,Bg]=usable;
+    const vA=A.sd*A.sd/A.n, vB=Bg.sd*Bg.sd/Bg.n;
+    const t=(A.mean-Bg.mean)/Math.sqrt(vA+vB);
+    const df=Math.pow(vA+vB,2)/(vA*vA/(A.n-1)+vB*vB/(Bg.n-1));
+    const p=pT(Math.abs(t),df);
+    html+=`<p class="note">Welch's t-test — ${A.name} vs ${Bg.name}</p>
+      <div class="stats"><div class="stat"><span>t</span><b>${fmt(t,3)}</b></div>
+      <div class="stat"><span>df</span><b>${fmt(df,1)}</b></div>
+      <div class="stat wide ${p<0.05?"hl":""}"><span>p (two-tailed)</span>
+      <b>${p<0.0001?"&lt; 0.0001":fmt(p,4)}</b></div></div>
+      <p class="note" style="margin-top:8px">${p<0.05?"Significant at α = 0.05."
+        :"Not significant at α = 0.05."}</p>`; }
+  else { const all=usable.flatMap(r=>r.vals), gm=avg(all), k=usable.length, N=all.length;
+    const ssb=usable.reduce((s,r)=>s+r.n*Math.pow(r.mean-gm,2),0);
+    const ssw=usable.reduce((s,r)=>s+r.vals.reduce((q,v)=>q+Math.pow(v-r.mean,2),0),0);
+    const d1=k-1,d2=N-k,F=(ssb/d1)/(ssw/d2),p=pF(F,d1,d2);
+    html+=`<p class="note">One-way ANOVA across ${k} groups</p>
+      <div class="stats"><div class="stat"><span>F</span><b>${fmt(F,3)}</b></div>
+      <div class="stat"><span>df</span><b>${d1}, ${d2}</b></div>
+      <div class="stat wide ${p<0.05?"hl":""}"><span>p</span>
+      <b>${p<0.0001?"&lt; 0.0001":fmt(p,4)}</b></div></div>
+      <p class="note" style="margin-top:8px">${p<0.05
+        ?"At least one group differs at α = 0.05.":"Not significant at α = 0.05."}</p>`; }
+  $("#sTest").innerHTML=html; drawChart(rows); }
+$("#sRun").onclick=runStats;
+$("#sMetric").onchange=runStats; $("#sBy").onchange=runStats;
+$("#sErr").onchange=()=>{ if(lastStats) drawChart(lastStats.rows); };
+$("#sExp").onclick=()=>{ if(!lastStats) return toast("Run an analysis first");
+  const head="Group,n,Mean,SD,SEM,Min,Max";
+  const rows=lastStats.rows.map(r=>[csvCell(r.name),r.n,fmt(r.mean,4),
+    r.sd==null?"":fmt(r.sd,4),r.sem==null?"":fmt(r.sem,4),
+    fmt(r.min,4),fmt(r.max,4)].join(","));
+  download("pollen_summary_"+lastStats.metric.replace("*","")+".csv",
+    [head,...rows].join("\n"),"text/csv;charset=utf-8"); toast("Summary exported"); };
+
+function drawChart(rows){
+  const cv=$("#chart"), dpr=window.devicePixelRatio||1;
+  const w=cv.clientWidth,h=cv.clientHeight;
+  cv.width=w*dpr; cv.height=h*dpr;
+  const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h);
+  if(!rows.length){ c.fillStyle="#5F6B7D";
+    c.font="12px "+getComputedStyle(document.body).fontFamily;
+    c.textAlign="center"; c.fillText("Run an analysis to draw the plot",w/2,h/2); return; }
+  const useSD=$("#sErr").value==="sd", err=r=>useSD?(r.sd||0):(r.sem||0);
+  const padL=56,padB=46,padT=18,padR=14, pw=w-padL-padR, ph=h-padT-padB;
+  let mx=0; rows.forEach(r=>{ mx=Math.max(mx,r.mean+err(r),r.max); });
+  mx=mx>0?mx*1.12:1;
+  const Y=v=>padT+ph-(v/mx)*ph;
+  c.strokeStyle="#28303C"; c.fillStyle="#8C97A8"; c.lineWidth=1;
+  c.font="11px ui-monospace,monospace"; c.textAlign="right"; c.textBaseline="middle";
+  for(let i=0;i<=5;i++){ const v=mx*i/5,y=Y(v);
+    c.beginPath(); c.moveTo(padL,y); c.lineTo(w-padR,y); c.stroke();
+    c.fillText(v>=100?v.toFixed(0):v.toFixed(1),padL-8,y); }
+  const bw=pw/rows.length, bar=Math.min(58,bw*0.5);
+  rows.forEach((r,i)=>{ const cx=padL+bw*(i+0.5), e=err(r);
+    c.fillStyle="rgba(95,224,138,.20)"; c.strokeStyle="#5FE08A";
+    c.fillRect(cx-bar/2,Y(r.mean),bar,padT+ph-Y(r.mean));
+    c.strokeRect(cx-bar/2,Y(r.mean),bar,padT+ph-Y(r.mean));
+    const many=r.vals.length>60;
+    c.fillStyle=many?"rgba(255,176,32,.35)":"rgba(255,176,32,.85)";
+    const spread=Math.min(bar*0.9,34);
+    r.vals.forEach((v,k)=>{ const t=((k*2654435761)%1000)/1000-0.5;
+      c.beginPath(); c.arc(cx+t*spread,Y(v),many?1.7:2.6,0,7); c.fill(); });
+    if(e){ c.strokeStyle="#E8ECF3"; c.lineWidth=1.4; c.beginPath();
+      c.moveTo(cx,Y(r.mean-e)); c.lineTo(cx,Y(r.mean+e));
+      c.moveTo(cx-7,Y(r.mean+e)); c.lineTo(cx+7,Y(r.mean+e));
+      c.moveTo(cx-7,Y(r.mean-e)); c.lineTo(cx+7,Y(r.mean-e)); c.stroke(); c.lineWidth=1; }
+    c.fillStyle="#E8ECF3"; c.textAlign="center"; c.textBaseline="top";
+    c.font="11px "+getComputedStyle(document.body).fontFamily;
+    c.fillText(r.name.length>14?r.name.slice(0,13)+"…":r.name,cx,padT+ph+8);
+    c.fillStyle="#5F6B7D"; c.font="10px ui-monospace,monospace";
+    c.fillText("n="+r.n,cx,padT+ph+24); });
+  c.fillStyle="#5F6B7D"; c.textAlign="left"; c.textBaseline="top";
+  c.fillText(useSD?"mean ± SD":"mean ± SEM",padL,2); }
+
+/* ═══════════════ tabs & boot ═══════════════ */
+$$("nav button").forEach(b=>b.onclick=()=>{
+  $$("nav button").forEach(x=>x.setAttribute("aria-selected",x===b));
+  $$(".tab").forEach(t=>t.classList.toggle("on",t.id==="tab-"+b.dataset.tab));
+  if(b.dataset.tab==="stats") runStats();
+  if(b.dataset.tab==="data") renderData(); });
+window.addEventListener("resize",()=>{ if(lastStats) drawChart(lastStats.rows); });
+renderData(); readout(); renderQueue(); vRenderQueue(); stampSession();
+restore(); drawChart([]);
+</script>
+</body>
+</html>
