@@ -27,6 +27,7 @@ Chrome or Edge are the safest choices. PNG and JPG both work. Browsers cannot de
 -----------
 
 **What PollenLab does**
+
 You load a whole set of images at the start, work through them one at a time, and save everything to the dataset at the end. Detection settings belong to the image you have open, so you can tune each one on its own, and one button copies a setting you like across the rest of the queue.
 
 **Counting grains**
