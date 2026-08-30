@@ -11,7 +11,7 @@ Image analysis for in vitro pollen germination assays. Count grains, score germi
 The repository holds two tools that solve the same problem at different levels of effort:
 
   - PollenLab, a single HTML file that runs in a browser with no install and no server.
-  - An ImageJ/Fiji macro for people who already work in Fiji and only need counts and areas.
+  - An ImageJ/Fiji macro for people who already work in Fiji and only need counts and areas
 
 ------------------------
 
